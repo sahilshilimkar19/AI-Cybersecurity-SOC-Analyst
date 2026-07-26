@@ -12,12 +12,18 @@ license = { text = "Proprietary" }
 authors = [{ name = "Sahil Shilimkar" }]
 keywords = ["soc", "cybersecurity", "agentic-ai", "incident-response"]
 
-# Runtime dependencies introduced in Sprint 1 (Bootstrap).
-# Additional dependencies are added by the sprint that first requires them.
+# Runtime dependencies. Additional dependencies are added by the sprint that
+# first requires them.
 dependencies = [
+    # Sprint 1 — Bootstrap
     "pydantic>=2.5",
     "pydantic-settings>=2.1",
     "structlog>=24.1",
+    # Sprint 2 — Database + Models
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.1",
+    "alembic>=1.13",
+    "minio>=7.2",
 ]
 
 [project.optional-dependencies]
@@ -57,7 +63,7 @@ exclude = ["tests*", "docs*", "deploy*", "scripts*", "prompts*", "frontend*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = [".venv", "logs", "frontend"]
+extend-exclude = [".venv", "logs", "frontend", "backend/db/migrations/versions"]
 
 [tool.ruff.lint]
 select = [
@@ -97,12 +103,17 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
 no_implicit_optional = true
-exclude = ['^\.venv/', '^logs/', '^frontend/']
+exclude = ['^\.venv/', '^logs/', '^frontend/', '^backend/db/migrations/']
 
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
+
+# Third-party packages without bundled type stubs.
+[[tool.mypy.overrides]]
+module = ["minio.*"]
+ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
 # Pytest
@@ -118,8 +129,8 @@ addopts = "-ra --strict-markers"
 # ---------------------------------------------------------------------------
 [tool.coverage.run]
 branch = true
-source = ["config"]
-omit = ["tests/*"]
+source = ["config", "models", "backend"]
+omit = ["tests/*", "backend/db/migrations/*"]
 
 [tool.coverage.report]
 show_missing = true
