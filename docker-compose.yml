@@ -1,0 +1,74 @@
+# ---------------------------------------------------------------------------
+# Local development infrastructure for the AI Cybersecurity SOC Analyst.
+#
+# Provides the backing services later sprints depend on. It does NOT run the
+# application itself (that is executed directly during development, and
+# containerized for production in the Deployment sprint).
+#
+#   Start:  docker compose up -d
+#   Stop:   docker compose down
+#
+# Credentials below are LOCAL-ONLY development defaults and are not secrets.
+# Production credentials are injected at runtime from the secret manager.
+# ---------------------------------------------------------------------------
+
+services:
+  # PostgreSQL with the pgvector extension — relational system of record and
+  # the vector index for RAG (used from the Database and RAG sprints).
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: soc-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-soc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soc_local_pw}
+      POSTGRES_DB: ${POSTGRES_DB:-soc_analyst}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-soc} -d ${POSTGRES_DB:-soc_analyst}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis — cache, short-term/hot session memory, rate limiting, and queue
+  # coordination (used from the Memory sprint).
+  redis:
+    image: redis:7-alpine
+    container_name: soc-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO — S3-compatible object storage for immutable raw log evidence and
+  # artifacts (used from the Database sprint).
+  minio:
+    image: minio/minio:latest
+    container_name: soc-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-soc_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-soc_minio_local_pw}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
