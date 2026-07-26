@@ -1,0 +1,36 @@
+# Normalize line endings: let Git handle EOL, checkout native, commit LF.
+* text=auto eol=lf
+
+# Explicit text types
+*.py     text diff=python
+*.md     text
+*.txt    text
+*.toml   text
+*.yaml   text
+*.yml    text
+*.json   text
+*.cfg    text
+*.ini    text
+*.ts     text
+*.tsx    text
+*.js     text
+*.jsx    text
+*.html   text
+*.css    text
+
+# Windows-specific scripts keep CRLF
+*.bat    text eol=crlf
+*.cmd    text eol=crlf
+
+# Shell scripts keep LF
+*.sh     text eol=lf
+
+# Binary assets (never diff/merge as text)
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.pdf    binary
+*.woff   binary
+*.woff2  binary
