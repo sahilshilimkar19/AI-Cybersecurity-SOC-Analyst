@@ -12,7 +12,7 @@ from __future__ import annotations
 from enum import StrEnum
 from functools import lru_cache
 
-from pydantic import Field, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -71,6 +71,47 @@ class Settings(BaseSettings):
     log_json: bool = Field(
         default=True,
         description="Emit structured JSON logs (true) or console logs (false).",
+    )
+
+    # --- Database (Sprint 2) ------------------------------------------------
+    # SQLAlchemy URL. The default targets the local docker-compose PostgreSQL
+    # and is a LOCAL-ONLY convenience; production supplies this via the secret
+    # store / environment.
+    database_url: str = Field(
+        default="postgresql+psycopg://soc:soc_local_pw@localhost:5432/soc_analyst",
+        description="SQLAlchemy database URL.",
+    )
+    database_echo: bool = Field(
+        default=False,
+        description="Echo SQL statements (debugging only).",
+    )
+    database_pool_size: int = Field(
+        default=5,
+        ge=1,
+        description="Connection pool size.",
+    )
+
+    # --- Object storage for raw evidence (Sprint 2) -------------------------
+    # Defaults target the local docker-compose MinIO and are LOCAL-ONLY.
+    object_store_endpoint: str = Field(
+        default="localhost:9000",
+        description="S3-compatible object-store endpoint (host:port).",
+    )
+    object_store_access_key: str = Field(
+        default="soc_minio",
+        description="Object-store access key.",
+    )
+    object_store_secret_key: SecretStr = Field(
+        default=SecretStr("soc_minio_local_pw"),
+        description="Object-store secret key.",
+    )
+    object_store_bucket: str = Field(
+        default="soc-evidence",
+        description="Bucket holding immutable raw log evidence.",
+    )
+    object_store_secure: bool = Field(
+        default=False,
+        description="Use TLS for the object store (true in production).",
     )
 
     @property
