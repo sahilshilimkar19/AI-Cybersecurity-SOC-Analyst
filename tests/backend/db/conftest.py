@@ -1,0 +1,56 @@
+"""Fixtures for database integration tests.
+
+These tests require a reachable PostgreSQL specified by ``SOC_TEST_DATABASE_URL``.
+When it is unset or unreachable the tests are skipped, so the rest of the suite
+runs without a database. In CI the URL points at the Postgres service.
+"""
+
+import os
+from collections.abc import Iterator
+
+import pytest
+from sqlalchemy import Engine, create_engine, text
+from sqlalchemy.orm import Session, sessionmaker
+
+import backend.db  # noqa: F401 - registers all ORM tables on Base.metadata
+from backend.db.base import Base
+
+
+@pytest.fixture(scope="session")
+def db_engine() -> Iterator[Engine]:
+    """Session-scoped engine against the test database; skips if unavailable."""
+    url = os.environ.get("SOC_TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("SOC_TEST_DATABASE_URL not set; skipping database integration tests")
+
+    engine = create_engine(url)
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception as exc:  # pragma: no cover - environment dependent
+        engine.dispose()
+        pytest.skip(f"test database not reachable: {exc}")
+
+    Base.metadata.create_all(engine)
+    yield engine
+    Base.metadata.drop_all(engine)
+    engine.dispose()
+
+
+@pytest.fixture
+def db_session(db_engine: Engine) -> Iterator[Session]:
+    """Function-scoped session wrapped in a transaction that is rolled back.
+
+    Each test runs in its own transaction, giving isolation without recreating
+    the schema between tests.
+    """
+    connection = db_engine.connect()
+    transaction = connection.begin()
+    factory = sessionmaker(bind=connection, expire_on_commit=False)
+    session = factory()
+    try:
+        yield session
+    finally:
+        session.close()
+        transaction.rollback()
+        connection.close()
