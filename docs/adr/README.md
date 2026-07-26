@@ -17,3 +17,4 @@ Each ADR is a numbered file (`NNNN-title.md`) with: **Status**, **Context**, **D
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-bootstrap-and-tooling.md) | Bootstrap toolchain and project layout | Accepted |
+| [0002](0002-persistence-and-migrations.md) | Persistence layer and migrations | Accepted |
