@@ -1,0 +1,3 @@
+# This file keeps the runtime log directory under version control while its
+# contents remain git-ignored (see .gitignore). Application/audit log output is
+# written here at runtime; nothing here is committed.
