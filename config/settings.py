@@ -11,9 +11,13 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Local-only default JWT secret; production is required to override it (validated below).
+_INSECURE_JWT_SECRET = "dev-insecure-change-me"
 
 
 class Environment(StrEnum):
@@ -114,16 +118,75 @@ class Settings(BaseSettings):
         description="Use TLS for the object store (true in production).",
     )
 
+    # --- OIDC (Sprint 3) ----------------------------------------------------
+    # The platform is an OIDC Relying Party; identity is federated to an external
+    # IdP. These are configured per environment (client secret via secret store).
+    oidc_issuer: str = Field(default="", description="OIDC issuer URL.")
+    oidc_client_id: str = Field(default="", description="OIDC client identifier.")
+    oidc_client_secret: SecretStr = Field(default=SecretStr(""), description="OIDC client secret.")
+    oidc_redirect_uri: str = Field(
+        default="http://localhost:8000/auth/callback",
+        description="Registered OIDC redirect/callback URI.",
+    )
+    oidc_scopes: str = Field(
+        default="openid profile email", description="Space-separated OIDC scopes."
+    )
+    oidc_audience: str = Field(
+        default="", description="Expected ID-token audience (defaults to client id)."
+    )
+    oidc_role_claim: str = Field(
+        default="roles", description="ID-token claim carrying the user's roles."
+    )
+    oidc_default_role: str = Field(
+        default="analyst", description="Role assigned when the token carries none."
+    )
+
+    # --- Session tokens (Sprint 3) ------------------------------------------
+    # The RP issues its own short-lived access JWT plus a rotating refresh token.
+    jwt_secret: SecretStr = Field(
+        default=SecretStr(_INSECURE_JWT_SECRET),
+        description="Secret used to sign the platform's access tokens.",
+    )
+    jwt_algorithm: str = Field(default="HS256", description="Access-token signing algorithm.")
+    jwt_issuer: str = Field(default="soc-analyst", description="Access-token issuer claim.")
+    access_token_ttl_seconds: int = Field(
+        default=900, ge=60, description="Access-token lifetime (seconds)."
+    )
+    refresh_token_ttl_seconds: int = Field(
+        default=604800, ge=300, description="Refresh-token lifetime (seconds)."
+    )
+
+    # --- Sessions & rate limiting (Sprint 3) --------------------------------
+    session_backend: Literal["memory", "redis"] = Field(
+        default="memory", description="Session/refresh store backend."
+    )
+    redis_url: str = Field(
+        default="redis://localhost:6379/0", description="Redis URL for the session store."
+    )
+    rate_limit_requests: int = Field(
+        default=100, ge=1, description="Max requests per window per client."
+    )
+    rate_limit_window_seconds: int = Field(
+        default=60, ge=1, description="Rate-limit window length (seconds)."
+    )
+
     @property
     def is_production(self) -> bool:
         """Whether the process is running in the production environment."""
         return self.environment is Environment.PRODUCTION
+
+    @property
+    def effective_oidc_audience(self) -> str:
+        """The expected ID-token audience (defaults to the client id)."""
+        return self.oidc_audience or self.oidc_client_id
 
     @model_validator(mode="after")
     def _enforce_production_safety(self) -> Settings:
         """Fail fast on unsafe production configuration."""
         if self.is_production and self.debug:
             raise ValueError("SOC_DEBUG must be false in the production environment.")
+        if self.is_production and self.jwt_secret.get_secret_value() == _INSECURE_JWT_SECRET:
+            raise ValueError("SOC_JWT_SECRET must be set to a strong value in production.")
         return self
 
 

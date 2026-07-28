@@ -59,11 +59,21 @@ def test_production_with_debug_is_rejected(monkeypatch: pytest.MonkeyPatch) -> N
 def test_production_without_debug_is_allowed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SOC_ENVIRONMENT", "production")
     monkeypatch.setenv("SOC_DEBUG", "false")
+    # Production also requires a non-default JWT secret (Sprint 3 safety check).
+    monkeypatch.setenv("SOC_JWT_SECRET", "a-strong-production-jwt-secret-value-0123456789")
 
     settings = Settings()
 
     assert settings.is_production is True
     assert settings.debug is False
+
+
+def test_production_with_default_jwt_secret_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SOC_ENVIRONMENT", "production")
+    monkeypatch.setenv("SOC_DEBUG", "false")
+
+    with pytest.raises(ValidationError):
+        Settings()
 
 
 def test_get_settings_is_cached() -> None:
