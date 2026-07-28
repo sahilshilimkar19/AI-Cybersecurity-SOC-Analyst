@@ -24,6 +24,12 @@ dependencies = [
     "psycopg[binary]>=3.1",
     "alembic>=1.13",
     "minio>=7.2",
+    # Sprint 3 — Authentication
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pyjwt[crypto]>=2.9",
+    "httpx>=0.27",
+    "redis>=5.0",
 ]
 
 [project.optional-dependencies]
@@ -89,6 +95,20 @@ known-first-party = [
     "rag", "tools", "services", "models", "integrations",
 ]
 
+# FastAPI dependency-injection markers are designed to be called in argument
+# defaults; treat them as immutable so flake8-bugbear (B008) does not flag them.
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.Body",
+    "fastapi.Form",
+    "fastapi.Security",
+]
+
 # ---------------------------------------------------------------------------
 # Mypy — static typing
 # ---------------------------------------------------------------------------
@@ -112,7 +132,7 @@ disallow_incomplete_defs = false
 
 # Third-party packages without bundled type stubs.
 [[tool.mypy.overrides]]
-module = ["minio.*"]
+module = ["minio.*", "redis.*"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
