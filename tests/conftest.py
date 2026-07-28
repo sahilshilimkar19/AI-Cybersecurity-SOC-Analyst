@@ -13,7 +13,7 @@ import pytest
 
 from config.settings import Settings, get_settings
 
-_PRESERVED = {"SOC_TEST_DATABASE_URL"}
+_PRESERVED = {"SOC_TEST_DATABASE_URL", "SOC_TEST_REDIS_URL"}
 
 
 @pytest.fixture(autouse=True)
