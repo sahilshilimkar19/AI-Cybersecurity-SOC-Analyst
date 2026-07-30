@@ -170,6 +170,26 @@ class Settings(BaseSettings):
         default=60, ge=1, description="Rate-limit window length (seconds)."
     )
 
+    # --- Graph orchestration (Sprint 4) -------------------------------------
+    # The deterministic control plane. Checkpoints are the unit of resume and
+    # rollback; a durable Postgres backend is introduced with the durable memory
+    # tier in the Memory sprint, so only "memory" is selectable today.
+    graph_checkpoint_backend: Literal["memory"] = Field(
+        default="memory", description="Graph checkpoint storage backend."
+    )
+    graph_max_retries: int = Field(
+        default=3, ge=1, description="Maximum attempts (including the first) per retriable node."
+    )
+    graph_retry_initial_seconds: float = Field(
+        default=0.5, gt=0, description="Initial backoff interval before the first node retry."
+    )
+    graph_retry_backoff_factor: float = Field(
+        default=2.0, ge=1.0, description="Multiplier applied to the backoff interval each retry."
+    )
+    graph_retry_max_seconds: float = Field(
+        default=30.0, gt=0, description="Maximum backoff interval between node retries."
+    )
+
     @property
     def is_production(self) -> bool:
         """Whether the process is running in the production environment."""

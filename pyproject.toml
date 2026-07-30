@@ -30,6 +30,8 @@ dependencies = [
     "pyjwt[crypto]>=2.9",
     "httpx>=0.27",
     "redis>=5.0",
+    # Sprint 4 — LangGraph Core
+    "langgraph>=1.1",
 ]
 
 [project.optional-dependencies]
@@ -149,7 +151,7 @@ addopts = "-ra --strict-markers"
 # ---------------------------------------------------------------------------
 [tool.coverage.run]
 branch = true
-source = ["config", "models", "backend"]
+source = ["config", "models", "backend", "graph"]
 omit = ["tests/*", "backend/db/migrations/*"]
 
 [tool.coverage.report]
