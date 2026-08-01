@@ -172,9 +172,9 @@ class Settings(BaseSettings):
 
     # --- Graph orchestration (Sprint 4) -------------------------------------
     # The deterministic control plane. Checkpoints are the unit of resume and
-    # rollback; a durable Postgres backend is introduced with the durable memory
-    # tier in the Memory sprint, so only "memory" is selectable today.
-    graph_checkpoint_backend: Literal["memory"] = Field(
+    # rollback. The durable Postgres backend (Sprint 5) lets an investigation
+    # survive a worker restart; "memory" is per-process and for tests/local use.
+    graph_checkpoint_backend: Literal["memory", "postgres"] = Field(
         default="memory", description="Graph checkpoint storage backend."
     )
     graph_max_retries: int = Field(
@@ -188,6 +188,28 @@ class Settings(BaseSettings):
     )
     graph_retry_max_seconds: float = Field(
         default=30.0, gt=0, description="Maximum backoff interval between node retries."
+    )
+
+    # --- Memory layer (Sprint 5) --------------------------------------------
+    # Tiered memory (EDS §7). The hot tier is Redis in real deployments and
+    # in-process for tests/local; the durable tier is always PostgreSQL and is
+    # the source of truth on conflict.
+    memory_hot_backend: Literal["memory", "redis"] = Field(
+        default="memory", description="Hot (fast) memory tier backend."
+    )
+    memory_namespace: str = Field(
+        default="soc:mem", description="Key namespace for the hot memory tier."
+    )
+    memory_session_ttl_seconds: int = Field(
+        default=3600, ge=60, description="TTL for hot session-memory entries (seconds)."
+    )
+    memory_working_token_budget: int = Field(
+        default=8000,
+        ge=256,
+        description="Token budget bounding working memory; overflow is summarized out.",
+    )
+    memory_working_max_entries: int = Field(
+        default=200, ge=1, description="Maximum entries retained in working memory."
     )
 
     @property
