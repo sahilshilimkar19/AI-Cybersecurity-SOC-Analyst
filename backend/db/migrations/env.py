@@ -25,6 +25,20 @@ config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
 target_metadata = Base.metadata
 
+# Tables owned by the LangGraph Postgres checkpointer. It creates and migrates
+# them itself (``PostgresSaver.setup()``), so Alembic must neither generate nor
+# drop them; without this filter autogenerate would see them as dropped tables.
+_EXTERNAL_TABLES = frozenset(
+    {"checkpoints", "checkpoint_blobs", "checkpoint_writes", "checkpoint_migrations"}
+)
+
+
+def include_name(name: str | None, type_: str, parent_names: dict[str, str | None]) -> bool:
+    """Exclude externally-owned tables from autogenerate comparison."""
+    if type_ == "table":
+        return name not in _EXTERNAL_TABLES
+    return True
+
 
 def run_migrations_offline() -> None:
     """Run migrations without a live DB connection (emits SQL)."""
@@ -35,6 +49,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_name=include_name,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -52,6 +67,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
+            include_name=include_name,
         )
         with context.begin_transaction():
             context.run_migrations()
