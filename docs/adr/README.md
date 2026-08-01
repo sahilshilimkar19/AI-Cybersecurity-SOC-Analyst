@@ -20,3 +20,4 @@ Each ADR is a numbered file (`NNNN-title.md`) with: **Status**, **Context**, **D
 | [0002](0002-persistence-and-migrations.md) | Persistence layer and migrations | Accepted |
 | [0003](0003-authentication.md) | Authentication and authorization | Accepted |
 | [0004](0004-langgraph-core.md) | LangGraph orchestration core | Accepted |
+| [0005](0005-memory-layer.md) | Tiered memory layer | Accepted |
