@@ -153,3 +153,12 @@ class AssetEnvironment(StrEnum):
     STAGING = "staging"
     DEVELOPMENT = "development"
     UNKNOWN = "unknown"
+
+
+class MemoryIndexKind(StrEnum):
+    """Dimension a closed investigation is indexed by for recall (EDS §7)."""
+
+    ASSET = "asset"
+    IOC = "ioc"
+    TECHNIQUE = "technique"
+    CVE = "cve"

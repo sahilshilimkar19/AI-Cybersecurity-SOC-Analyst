@@ -18,6 +18,7 @@ from models.enums import (
     DecisionType,
     EnrichmentStatus,
     InvestigationStatus,
+    MemoryIndexKind,
     MessageAuthorType,
     NotificationChannel,
     NotificationStatus,
@@ -32,6 +33,15 @@ from models.enums import (
 )
 from models.evidence import LogEvent
 from models.investigation import Asset, Investigation
+from models.memory import (
+    ContextBundle,
+    ConversationTurn,
+    KnowledgeChunk,
+    MemoryEntry,
+    MemoryStats,
+    MemoryTier,
+    RelatedInvestigation,
+)
 from models.notification import Notification
 from models.reporting import Recommendation, Report
 from models.user import User
@@ -47,7 +57,9 @@ __all__ = [
     "AttackTechnique",
     "AuditLog",
     "Citation",
+    "ContextBundle",
     "Conversation",
+    "ConversationTurn",
     "CveApplicability",
     "CveFinding",
     "Cvss",
@@ -60,7 +72,12 @@ __all__ = [
     "Investigation",
     "InvestigationStatus",
     "Ioc",
+    "KnowledgeChunk",
     "LogEvent",
+    "MemoryEntry",
+    "MemoryIndexKind",
+    "MemoryStats",
+    "MemoryTier",
     "Message",
     "MessageAuthorType",
     "Notification",
@@ -68,6 +85,7 @@ __all__ = [
     "NotificationStatus",
     "Recommendation",
     "RecommendationType",
+    "RelatedInvestigation",
     "Report",
     "ReportStatus",
     "Severity",
