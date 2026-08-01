@@ -212,6 +212,39 @@ class Settings(BaseSettings):
         default=200, ge=1, description="Maximum entries retained in working memory."
     )
 
+    # --- RAG pipeline (Sprint 6) --------------------------------------------
+    # Grounding and citations (EDS §8). The embedding model and dimensions are
+    # pinned per index version: changing either requires re-embedding under a new
+    # index version, never an in-place edit.
+    embedding_provider: Literal["deterministic"] = Field(
+        default="deterministic",
+        description="Embedding provider backend (model-backed providers arrive with the AI layer).",
+    )
+    embedding_model: str = Field(
+        default="deterministic-hash-v1", description="Embedding model identifier pinned per index."
+    )
+    rag_chunk_max_characters: int = Field(
+        default=1200, ge=200, description="Maximum characters per chunk before splitting."
+    )
+    rag_chunk_overlap_characters: int = Field(
+        default=120, ge=0, description="Overlap between split chunks, to preserve context."
+    )
+    rag_retrieval_top_k: int = Field(
+        default=5, ge=1, description="Chunks returned per retrieval after ranking."
+    )
+    rag_retrieval_candidates: int = Field(
+        default=50, ge=1, description="Candidates fetched per retrieval path before ranking."
+    )
+    rag_context_token_budget: int = Field(
+        default=4000, ge=256, description="Token budget bounding retrieved context."
+    )
+    rag_freshness_half_life_days: float = Field(
+        default=180.0, gt=0, description="Age at which a source's freshness weight halves."
+    )
+    rag_cache_ttl_seconds: int = Field(
+        default=900, ge=0, description="TTL for cached retrieval results (0 disables caching)."
+    )
+
     @property
     def is_production(self) -> bool:
         """Whether the process is running in the production environment."""

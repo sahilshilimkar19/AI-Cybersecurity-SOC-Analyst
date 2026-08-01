@@ -34,6 +34,8 @@ dependencies = [
     "langgraph>=1.1",
     # Sprint 5 — Memory Layer (durable graph checkpoints)
     "langgraph-checkpoint-postgres>=3.1",
+    # Sprint 6 — RAG Pipeline (pgvector knowledge index)
+    "pgvector>=0.3",
 ]
 
 [project.optional-dependencies]
@@ -153,7 +155,7 @@ addopts = "-ra --strict-markers"
 # ---------------------------------------------------------------------------
 [tool.coverage.run]
 branch = true
-source = ["config", "models", "backend", "graph", "memory"]
+source = ["config", "models", "backend", "graph", "memory", "rag"]
 omit = ["tests/*", "backend/db/migrations/*"]
 
 [tool.coverage.report]
