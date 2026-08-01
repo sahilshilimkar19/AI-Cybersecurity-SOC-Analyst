@@ -261,20 +261,26 @@ def build_memory_service(
     settings: Settings,
     *,
     session_scope: Callable[[], AbstractContextManager[Session]] | None = None,
+    knowledge: KnowledgeMemory | None = None,
 ) -> MemoryService:
     """Compose the memory service from configuration.
 
     With a ``session_scope`` the durable tiers are PostgreSQL-backed; without one
     the service is fully in-process, which is what tests and local runs use.
+
+    ``knowledge`` is injected rather than constructed here so the memory layer
+    does not depend on the RAG pipeline: the composition root supplies the
+    RAG-backed tier, and without one the placeholder reports itself unavailable.
     """
     hot = build_hot_store(settings)
+    knowledge_tier: KnowledgeMemory = knowledge or UnavailableKnowledgeMemory()
 
     if session_scope is None:
         return MemoryService(
             session=SessionMemory(hot=hot, durable=InMemoryDurableStore()),
             conversation=InMemoryConversationMemory(),
             long_term=InMemoryLongTermMemory(),
-            knowledge=UnavailableKnowledgeMemory(),
+            knowledge=knowledge_tier,
             history=InMemoryInvestigationHistory(),
             working_token_budget=settings.memory_working_token_budget,
             working_max_entries=settings.memory_working_max_entries,
@@ -284,7 +290,7 @@ def build_memory_service(
         session=SessionMemory(hot=hot, durable=SqlDurableMemoryStore(session_scope)),
         conversation=SqlConversationMemory(session_scope),
         long_term=SqlLongTermMemory(session_scope),
-        knowledge=UnavailableKnowledgeMemory(),
+        knowledge=knowledge_tier,
         history=SqlInvestigationHistory(session_scope),
         working_token_budget=settings.memory_working_token_budget,
         working_max_entries=settings.memory_working_max_entries,
