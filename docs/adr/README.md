@@ -21,3 +21,4 @@ Each ADR is a numbered file (`NNNN-title.md`) with: **Status**, **Context**, **D
 | [0003](0003-authentication.md) | Authentication and authorization | Accepted |
 | [0004](0004-langgraph-core.md) | LangGraph orchestration core | Accepted |
 | [0005](0005-memory-layer.md) | Tiered memory layer | Accepted |
+| [0006](0006-rag-pipeline.md) | RAG pipeline | Accepted |
