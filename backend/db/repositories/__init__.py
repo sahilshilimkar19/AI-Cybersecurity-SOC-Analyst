@@ -7,6 +7,16 @@ invariant (#7) and centralizes validation and audit.
 
 from backend.db.repositories.audit import AuditLogRepository
 from backend.db.repositories.base import Repository
+from backend.db.repositories.memory import (
+    InvestigationMemoryIndexRepository,
+    SessionMemoryRepository,
+)
 from backend.db.repositories.user import UserRepository
 
-__all__ = ["AuditLogRepository", "Repository", "UserRepository"]
+__all__ = [
+    "AuditLogRepository",
+    "InvestigationMemoryIndexRepository",
+    "Repository",
+    "SessionMemoryRepository",
+    "UserRepository",
+]

@@ -10,6 +10,7 @@ from backend.db.orm.audit import AuditLog
 from backend.db.orm.conversation import Conversation, HumanDecision, Message
 from backend.db.orm.evidence import LogEvent
 from backend.db.orm.investigation import Asset, Investigation
+from backend.db.orm.memory import InvestigationMemoryIndexEntry, SessionMemoryEntry
 from backend.db.orm.notification import Notification
 from backend.db.orm.reporting import Recommendation, Report
 from backend.db.orm.user import User
@@ -22,11 +23,13 @@ __all__ = [
     "CveFinding",
     "HumanDecision",
     "Investigation",
+    "InvestigationMemoryIndexEntry",
     "LogEvent",
     "Message",
     "Notification",
     "Recommendation",
     "Report",
+    "SessionMemoryEntry",
     "ThreatAssessment",
     "User",
 ]
