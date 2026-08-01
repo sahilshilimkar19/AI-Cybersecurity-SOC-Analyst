@@ -48,6 +48,10 @@ def db_engine() -> Iterator[Engine]:
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
+            # The knowledge index uses pgvector types, so the extension must exist
+            # before create_all. Migrations do the same for real deployments.
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            connection.commit()
     except Exception as exc:  # pragma: no cover - environment dependent
         engine.dispose()
         pytest.skip(f"test database not reachable: {exc}")
