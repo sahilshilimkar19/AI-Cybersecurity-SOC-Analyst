@@ -155,6 +155,36 @@ class AssetEnvironment(StrEnum):
     UNKNOWN = "unknown"
 
 
+class SourceTrustTier(StrEnum):
+    """How far a knowledge source can be trusted, in descending authority.
+
+    Ranking prefers higher tiers, and a claim resting only on a low tier is
+    treated as weaker evidence (EDS §8 source trust).
+    """
+
+    AUTHORITATIVE = "authoritative"
+    VENDOR = "vendor"
+    COMMUNITY = "community"
+    INTERNAL = "internal"
+
+
+class KnowledgeSourceKind(StrEnum):
+    """The knowledge sources the RAG pipeline ingests (SAD §6)."""
+
+    NVD = "nvd"
+    MITRE_ATTACK = "mitre_attack"
+    ADVISORY = "advisory"
+    INTERNAL_RUNBOOK = "internal_runbook"
+
+
+class IndexStatus(StrEnum):
+    """Lifecycle of a knowledge index version; swaps are atomic per source."""
+
+    BUILDING = "building"
+    ACTIVE = "active"
+    RETIRED = "retired"
+
+
 class MemoryIndexKind(StrEnum):
     """Dimension a closed investigation is indexed by for recall (EDS §7)."""
 
