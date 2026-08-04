@@ -20,6 +20,8 @@ from __future__ import annotations
 from tools.attack import TECHNIQUES, TechniqueDefinition, known_technique, map_techniques
 from tools.base import ToolCallLog, ToolFailure, ToolRegistry, ToolResult, ToolSpec
 from tools.correlation import correlate_events, score_notability
+from tools.cvss import base_score, interpret, parse_vector
+from tools.cwe import WEAKNESSES, WeaknessDefinition, explain, known_weakness, normalize_cwe_id
 from tools.detection import (
     DEFAULT_RULES,
     DetectionContext,
@@ -52,11 +54,20 @@ from tools.severity import (
     score_severity,
     severity_level,
 )
+from tools.versions import (
+    Version,
+    assess_applicability,
+    in_vulnerable_range,
+    normalize_product,
+    parse_version,
+    products_match,
+)
 
 __all__ = [
     "DEFAULT_PARSERS",
     "DEFAULT_RULES",
     "TECHNIQUES",
+    "WEAKNESSES",
     "CefParser",
     "DetectionContext",
     "DetectionRule",
@@ -76,8 +87,12 @@ __all__ = [
     "ToolRegistry",
     "ToolResult",
     "ToolSpec",
+    "Version",
+    "WeaknessDefinition",
     "WindowsEventParser",
+    "assess_applicability",
     "assess_escalation",
+    "base_score",
     "classify_event_type",
     "correlate_events",
     "defang",
@@ -85,13 +100,22 @@ __all__ = [
     "derive_verdict",
     "enrichable",
     "evaluate_rules",
+    "explain",
     "extract_entities",
     "extract_iocs",
+    "in_vulnerable_range",
+    "interpret",
     "is_internal_address",
     "known_technique",
+    "known_weakness",
     "map_techniques",
+    "normalize_cwe_id",
+    "normalize_product",
     "parse_record",
     "parse_timestamp",
+    "parse_vector",
+    "parse_version",
+    "products_match",
     "score_notability",
     "score_severity",
     "severity_level",

@@ -14,6 +14,9 @@ reasoning so they are independently unit-testable (EDS §3.7).
 | `detection.py` | The detection rule catalogue and its engine |
 | `attack.py` | Pinned MITRE ATT&CK catalogue and the signal → technique mapper |
 | `severity.py` | Severity score, verdict, triage priority, escalation |
+| `cvss.py` | CVSS v3.1 vector parsing, base scoring, plain-language reading |
+| `versions.py` | Version comparison, published-range matching, CVE applicability |
+| `cwe.py` | Pinned MITRE CWE catalogue with plain explanations |
 
 ## Rules
 - **Least privilege:** each agent may call only its allow-listed tools.
