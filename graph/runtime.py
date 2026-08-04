@@ -81,13 +81,19 @@ class InvestigationGraphService:
         investigation_id: str,
         trigger_source: str,
         config_snapshot: Mapping[str, Any] | None = None,
+        evidence: Mapping[str, Any] | None = None,
     ) -> GraphRunResult:
-        """Start a new investigation, running until the human gate or completion."""
+        """Start a new investigation, running until the human gate or completion.
+
+        ``evidence`` seeds the raw records collected by the backend, which the
+        Log Analyzer node then normalizes and correlates.
+        """
         state = new_state(
             investigation_id=investigation_id,
             trigger_source=trigger_source,
             config_snapshot=config_snapshot or {},
             created_at=self._clock(),
+            evidence=evidence,
         )
         self._graph.invoke(state, self._config(investigation_id))
         return self._result(investigation_id)
@@ -112,6 +118,18 @@ class InvestigationGraphService:
     def get_state(self, investigation_id: str) -> GraphRunResult:
         """Return the current state of an investigation."""
         return self._result(investigation_id)
+
+    def raw_state(self, investigation_id: str) -> dict[str, Any]:
+        """Return the full checkpointed state.
+
+        :meth:`get_state` returns the control summary the backend and UI need;
+        this exposes the complete state object for inspection, replay, and
+        forensic review.
+        """
+        values: dict[str, Any] = self._graph.get_state(self._config(investigation_id)).values or {}
+        if not values:
+            raise InvestigationNotFoundError(investigation_id)
+        return values
 
     def history(self, investigation_id: str) -> list[CheckpointRef]:
         """Return the investigation's checkpoint history (newest first)."""

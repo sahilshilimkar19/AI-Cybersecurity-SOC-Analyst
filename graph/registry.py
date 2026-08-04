@@ -16,10 +16,12 @@ from graph.nodes import (
     CLOSE,
     HUMAN_GATE,
     INGEST_SEED,
+    LOG_ANALYSIS,
     TRIAGE,
     close,
     human_gate,
     ingest_seed,
+    log_analysis,
     triage,
 )
 from graph.state import GraphState
@@ -41,6 +43,7 @@ class NodeSpec:
 # and an invalid resume must fail fast rather than re-run.
 _REGISTRY: tuple[NodeSpec, ...] = (
     NodeSpec(INGEST_SEED, owner="graph-runtime", action=ingest_seed),
+    NodeSpec(LOG_ANALYSIS, owner="log-analyzer", action=log_analysis),
     NodeSpec(TRIAGE, owner="graph-runtime", action=triage),
     NodeSpec(HUMAN_GATE, owner="human-review", action=human_gate, retriable=False),
     NodeSpec(CLOSE, owner="graph-runtime", action=close),

@@ -27,7 +27,10 @@ from models.enums import InvestigationStatus
 
 # The state schema version pinned into every run's config snapshot. Bumping it is
 # a breaking change to the checkpoint format and requires a migration strategy.
-STATE_SCHEMA_VERSION = 1
+#
+# v2 added the ``evidence`` sub-state so raw records enter the graph alongside the
+# findings derived from them.
+STATE_SCHEMA_VERSION = 2
 
 
 # --- Reducers ---------------------------------------------------------------
@@ -112,6 +115,19 @@ class AgentRecord(TypedDict):
     tool_calls: list[dict[str, Any]]
 
 
+class EvidenceState(TypedDict):
+    """Raw evidence entering the graph, seeded by the backend at investigation start.
+
+    Held separately from :class:`InvestigationFindings` because these are *inputs* —
+    what was collected — while findings are what analysis derived from them.
+    """
+
+    raw_records: list[dict[str, Any]]
+    requested_sources: list[str]
+    source_failures: list[dict[str, Any]]
+    time_window: dict[str, Any] | None
+
+
 class InvestigationFindings(TypedDict):
     """The evidential core, written by the Log/Threat/CVE/Patch agents (later sprints)."""
 
@@ -175,6 +191,7 @@ class GraphState(TypedDict):
     # Ownership-scoped sub-states.
     shared: Annotated[SharedMemory, merge_substate]
     agents: Annotated[dict[str, AgentRecord], merge_substate]
+    evidence: Annotated[EvidenceState, merge_substate]
     investigation: Annotated[InvestigationFindings, merge_substate]
     report: Annotated[ReportState, merge_substate]
     notification: Annotated[NotificationState, merge_substate]
@@ -187,6 +204,7 @@ def new_state(
     trigger_source: str,
     config_snapshot: Mapping[str, Any],
     created_at: str,
+    evidence: Mapping[str, Any] | None = None,
 ) -> GraphState:
     """Build a fresh, fully-initialized state for a new investigation.
 
@@ -208,6 +226,12 @@ def new_state(
         errors=[],
         shared=SharedMemory(retrieved_context=[], entities=[], assets=[], working_notes=[]),
         agents={},
+        evidence=EvidenceState(
+            raw_records=list(dict(evidence or {}).get("raw_records", [])),
+            requested_sources=list(dict(evidence or {}).get("requested_sources", [])),
+            source_failures=list(dict(evidence or {}).get("source_failures", [])),
+            time_window=dict(evidence or {}).get("time_window"),
+        ),
         investigation=InvestigationFindings(
             normalized_events=[],
             timeline=[],

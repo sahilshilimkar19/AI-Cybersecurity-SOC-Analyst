@@ -22,14 +22,16 @@ from models.enums import DecisionType, InvestigationStatus
 
 # Node identifiers. Kept here so routing and the registry share one source of truth.
 INGEST_SEED = "ingest_seed"
+LOG_ANALYSIS = "log_analysis"
 TRIAGE = "triage"
 HUMAN_GATE = "human_gate"
 CLOSE = "close"
 
 # Node ownership (SAD §5): system nodes belong to the graph runtime; the approval
-# gate belongs to human review.
+# gate belongs to human review; agent nodes are owned by their agent.
 _OWNER_RUNTIME = "graph-runtime"
 _OWNER_HUMAN = "human-review"
+_OWNER_LOG_ANALYZER = "log-analyzer"
 
 
 def _utcnow() -> str:
@@ -54,8 +56,81 @@ def ingest_seed(state: GraphState) -> dict[str, Any]:
     }
 
 
+def log_analysis(state: GraphState) -> dict[str, Any]:
+    """Normalize and correlate the seeded evidence into a timeline.
+
+    Writes only into its own agent record and the investigation findings; the raw
+    evidence it read is left untouched, so what the graph ingested stays
+    distinguishable from what analysis concluded.
+
+    A source that failed to collect arrives here as a recorded failure rather than
+    an exception, and leaves as a coverage gap — the investigation proceeds with
+    what is available (invariant #6).
+    """
+    from agents.log_analyzer import AGENT_NAME, LogAnalyzer
+    from integrations.log_sources import LogFetchFailure
+    from models.logs import LogAnalysisRequest, RawLogRecord, TimeWindow
+
+    evidence = state["evidence"]
+    window_payload = evidence.get("time_window")
+    request = LogAnalysisRequest(
+        investigation_id=state["investigation_id"],
+        records=[RawLogRecord.model_validate(item) for item in evidence.get("raw_records", [])],
+        requested_sources=list(evidence.get("requested_sources", [])),
+        time_window=TimeWindow.model_validate(window_payload) if window_payload else None,
+    )
+    failures = [
+        LogFetchFailure(
+            source_id=str(item.get("source_id", "")),
+            reason=str(item.get("reason", "unknown")),
+            detail=str(item.get("detail", "")),
+        )
+        for item in evidence.get("source_failures", [])
+    ]
+
+    outcome = LogAnalyzer().analyze(request, source_failures=failures)
+    result = outcome.output
+
+    return {
+        "current_node": LOG_ANALYSIS,
+        "updated_at": _utcnow(),
+        "investigation": {
+            "normalized_events": [event.model_dump(mode="json") for event in result.events],
+            "timeline": [entry.model_dump(mode="json") for entry in result.timeline],
+            "coverage_gaps": [
+                f"{gap.kind.value}: {gap.detail}".strip(": ") for gap in result.coverage_gaps
+            ],
+        },
+        "agents": {
+            AGENT_NAME: {
+                "agent_name": AGENT_NAME,
+                "last_output": {
+                    "events": len(result.events),
+                    "correlations": len(result.correlations),
+                    "quarantined": len(result.quarantined),
+                    "source_coverage": result.source_coverage,
+                    "parse_failure_rate": result.parse_failure_rate,
+                    "prompt_version": outcome.prompt_version,
+                },
+                "confidence": outcome.confidence,
+                "retry_count": 0,
+                "tool_calls": outcome.tool_calls,
+            }
+        },
+        "node_history": [
+            _transition(
+                LOG_ANALYSIS,
+                _OWNER_LOG_ANALYZER,
+                "completed",
+                f"{len(result.events)} events, {len(result.correlations)} correlations, "
+                f"{len(result.coverage_gaps)} gaps",
+            )
+        ],
+    }
+
+
 def triage(state: GraphState) -> dict[str, Any]:
-    """Stub control node: the attachment point for the agent pipeline.
+    """Stub control node: the attachment point for the remaining agent pipeline.
 
     For now it simply advances the investigation to the human approval gate.
     """

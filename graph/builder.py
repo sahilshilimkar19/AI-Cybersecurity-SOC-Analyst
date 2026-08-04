@@ -4,10 +4,13 @@ Edges encode the deterministic control flow; the human gate branches on the
 recorded decision. Sequencing is enforced by edges, not by the nodes (EDS §5).
 The compiled graph checkpoints through the supplied checkpointer.
 
-Stub pipeline (LangGraph Core):
+Pipeline:
 
-    START -> ingest_seed -> triage -> human_gate --approve/reject--> close -> END
-                              ^                   \\--redirect--------/
+    START -> ingest_seed -> log_analysis -> triage -> human_gate --approve--> close -> END
+                                              ^                  \\--redirect---/
+
+``log_analysis`` is the first real agent node; ``triage`` remains the attachment
+point for the agents that follow it.
 """
 
 from __future__ import annotations
@@ -16,7 +19,14 @@ from typing import TYPE_CHECKING
 
 from langgraph.graph import END, START, StateGraph
 
-from graph.nodes import CLOSE, HUMAN_GATE, INGEST_SEED, TRIAGE, route_after_gate
+from graph.nodes import (
+    CLOSE,
+    HUMAN_GATE,
+    INGEST_SEED,
+    LOG_ANALYSIS,
+    TRIAGE,
+    route_after_gate,
+)
 from graph.registry import node_registry
 from graph.state import GraphState
 
@@ -42,7 +52,8 @@ def build_investigation_graph(
         builder.add_node(spec.name, spec.action, retry_policy=policy)  # type: ignore[call-overload]
 
     builder.add_edge(START, INGEST_SEED)
-    builder.add_edge(INGEST_SEED, TRIAGE)
+    builder.add_edge(INGEST_SEED, LOG_ANALYSIS)
+    builder.add_edge(LOG_ANALYSIS, TRIAGE)
     builder.add_edge(TRIAGE, HUMAN_GATE)
     builder.add_conditional_edges(
         HUMAN_GATE,
