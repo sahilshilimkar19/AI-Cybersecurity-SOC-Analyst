@@ -25,3 +25,4 @@ Each ADR is a numbered file (`NNNN-title.md`) with: **Status**, **Context**, **D
 | [0007](0007-log-analyzer-agent.md) | Log Analyzer agent, tools, and prompt assets | Accepted |
 | [0008](0008-threat-detector-agent.md) | Threat Detector agent, detection tools, and threat-intel enrichment | Accepted |
 | [0009](0009-cve-research-agent.md) | CVE Research agent, vulnerability tools, and the NVD feed | Accepted |
+| [0010](0010-incident-reporter-agent.md) | Incident Reporter agent, report assembly, and rendering | Accepted |
