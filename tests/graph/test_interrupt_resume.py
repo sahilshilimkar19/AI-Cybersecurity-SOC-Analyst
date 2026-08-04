@@ -36,7 +36,15 @@ def test_redirect_re_enters_triage_then_can_be_approved(
     assert approved.status == InvestigationStatus.CLOSED.value
     # History is retained, not destroyed: the pipeline was traversed twice.
     nodes = [t["node"] for t in approved.node_history]
-    assert nodes == ["ingest_seed", "triage", "human_gate", "triage", "human_gate", "close"]
+    assert nodes == [
+        "ingest_seed",
+        "log_analysis",
+        "triage",
+        "human_gate",
+        "triage",
+        "human_gate",
+        "close",
+    ]
 
 
 def test_resume_without_pending_gate_fails_fast(service: InvestigationGraphService) -> None:

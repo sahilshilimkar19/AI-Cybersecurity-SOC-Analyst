@@ -67,6 +67,7 @@ def test_paused_investigation_survives_a_worker_restart(
     assert resumed.status == InvestigationStatus.CLOSED.value
     assert [t["node"] for t in resumed.node_history] == [
         "ingest_seed",
+        "log_analysis",
         "triage",
         "human_gate",
         "close",

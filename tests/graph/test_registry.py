@@ -1,12 +1,17 @@
 """Tests for the node registry — the who-writes-what contract."""
 
-from graph.nodes import CLOSE, HUMAN_GATE, INGEST_SEED, TRIAGE
+from graph.nodes import CLOSE, HUMAN_GATE, INGEST_SEED, LOG_ANALYSIS, TRIAGE
 from graph.registry import node_registry
 
 
 def test_registry_has_the_expected_nodes_in_build_order() -> None:
     names = [spec.name for spec in node_registry()]
-    assert names == [INGEST_SEED, TRIAGE, HUMAN_GATE, CLOSE]
+    assert names == [INGEST_SEED, LOG_ANALYSIS, TRIAGE, HUMAN_GATE, CLOSE]
+
+
+def test_agent_nodes_are_owned_by_their_agent() -> None:
+    by_name = {spec.name: spec for spec in node_registry()}
+    assert by_name[LOG_ANALYSIS].owner == "log-analyzer"
 
 
 def test_every_node_has_an_owner_and_callable_action() -> None:
