@@ -19,6 +19,7 @@ degrades exactly one capability (invariant #6).
 | `log_sources.py` | File + in-process log connectors (SIEM adapters satisfy the same protocol) |
 | `resilience.py` | Shared TTL cache, token-bucket rate limiter, circuit breaker |
 | `threat_intel.py` | IoC reputation: unavailable-by-default, in-memory, VirusTotal |
+| `nvd.py` | NVD CVE API v2: records, CVSS, CWEs, affected version ranges |
 
 ## Rules
 Read-only by default for data sources (no enforcement authority); validate/normalize all

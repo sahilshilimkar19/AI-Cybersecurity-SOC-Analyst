@@ -290,6 +290,51 @@ class Settings(BaseSettings):
         description="Window within which detection heuristics group related activity.",
     )
 
+    # --- CVE research (Sprint 9) --------------------------------------------
+    # The live vulnerability feed. NVD is reachable without an API key, but
+    # whether this platform makes outbound calls at all is an operator decision:
+    # with the source disabled the agent researches from the indexed corpus and
+    # marks the dossier stale, which is the documented degraded path (EDS §4.4).
+    cve_source: Literal["none", "nvd"] = Field(
+        default="none", description="Live CVE feed; 'none' researches from the indexed corpus."
+    )
+    nvd_base_url: str = Field(
+        default="https://services.nvd.nist.gov/rest/json/cves/2.0",
+        description="NVD CVE API v2 endpoint.",
+    )
+    nvd_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        description="NVD API key (optional; raises the published rate limit).",
+    )
+    nvd_timeout_seconds: float = Field(
+        default=10.0, gt=0, description="Per-request timeout for NVD lookups."
+    )
+    nvd_cache_ttl_seconds: int = Field(
+        default=21600, ge=0, description="TTL for cached CVE records (0 disables caching)."
+    )
+    nvd_rate_limit_per_window: int = Field(
+        default=5,
+        ge=1,
+        description="NVD requests permitted per window (5 without an API key, 50 with one).",
+    )
+    nvd_rate_limit_window_seconds: float = Field(
+        default=30.0, gt=0, description="Length of the NVD rate-limit window (seconds)."
+    )
+    nvd_breaker_failure_threshold: int = Field(
+        default=3, ge=1, description="Consecutive failures before the NVD circuit opens."
+    )
+    nvd_breaker_reset_seconds: float = Field(
+        default=60.0, gt=0, description="How long the NVD circuit stays open before probing."
+    )
+    cve_max_products_searched: int = Field(
+        default=12,
+        ge=1,
+        description="Maximum inventory products researched per investigation, bounding cost.",
+    )
+    cve_results_per_product: int = Field(
+        default=10, ge=1, description="Maximum CVE records considered per product searched."
+    )
+
     @property
     def is_production(self) -> bool:
         """Whether the process is running in the production environment."""
