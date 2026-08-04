@@ -66,8 +66,9 @@ include = [
     "services*",
     "models*",
     "integrations*",
+    "prompts*",
 ]
-exclude = ["tests*", "docs*", "deploy*", "scripts*", "prompts*", "frontend*"]
+exclude = ["tests*", "docs*", "deploy*", "scripts*", "frontend*"]
 
 # ---------------------------------------------------------------------------
 # Ruff — linting + formatting
@@ -98,7 +99,7 @@ ignore = []
 [tool.ruff.lint.isort]
 known-first-party = [
     "config", "backend", "agents", "graph", "memory",
-    "rag", "tools", "services", "models", "integrations",
+    "rag", "tools", "services", "models", "integrations", "prompts",
 ]
 
 # FastAPI dependency-injection markers are designed to be called in argument
