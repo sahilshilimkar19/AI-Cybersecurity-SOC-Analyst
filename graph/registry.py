@@ -17,11 +17,13 @@ from graph.nodes import (
     HUMAN_GATE,
     INGEST_SEED,
     LOG_ANALYSIS,
+    THREAT_DETECTION,
     TRIAGE,
     close,
     human_gate,
     ingest_seed,
     log_analysis,
+    threat_detection,
     triage,
 )
 from graph.state import GraphState
@@ -44,6 +46,7 @@ class NodeSpec:
 _REGISTRY: tuple[NodeSpec, ...] = (
     NodeSpec(INGEST_SEED, owner="graph-runtime", action=ingest_seed),
     NodeSpec(LOG_ANALYSIS, owner="log-analyzer", action=log_analysis),
+    NodeSpec(THREAT_DETECTION, owner="threat-detector", action=threat_detection),
     NodeSpec(TRIAGE, owner="graph-runtime", action=triage),
     NodeSpec(HUMAN_GATE, owner="human-review", action=human_gate, retriable=False),
     NodeSpec(CLOSE, owner="graph-runtime", action=close),

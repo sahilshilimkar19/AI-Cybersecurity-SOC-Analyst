@@ -6,11 +6,16 @@ The compiled graph checkpoints through the supplied checkpointer.
 
 Pipeline:
 
-    START -> ingest_seed -> log_analysis -> triage -> human_gate --approve--> close -> END
-                                              ^                  \\--redirect---/
+    START -> ingest_seed -> log_analysis -> threat_detection -> triage
+                                                                  |
+                                          human_gate --approve--> close -> END
+                                              ^        \\--redirect--/
 
-``log_analysis`` is the first real agent node; ``triage`` remains the attachment
-point for the agents that follow it.
+``log_analysis`` establishes the evidence and ``threat_detection`` assesses it;
+``triage`` remains the attachment point for the agents that follow. Note that the
+benign path is not short-circuited to ``close``: every disposition traverses the
+human gate, because closing an investigation is itself a consequential outcome
+(invariant #1).
 """
 
 from __future__ import annotations
@@ -24,6 +29,7 @@ from graph.nodes import (
     HUMAN_GATE,
     INGEST_SEED,
     LOG_ANALYSIS,
+    THREAT_DETECTION,
     TRIAGE,
     route_after_gate,
 )
@@ -53,7 +59,8 @@ def build_investigation_graph(
 
     builder.add_edge(START, INGEST_SEED)
     builder.add_edge(INGEST_SEED, LOG_ANALYSIS)
-    builder.add_edge(LOG_ANALYSIS, TRIAGE)
+    builder.add_edge(LOG_ANALYSIS, THREAT_DETECTION)
+    builder.add_edge(THREAT_DETECTION, TRIAGE)
     builder.add_edge(TRIAGE, HUMAN_GATE)
     builder.add_conditional_edges(
         HUMAN_GATE,

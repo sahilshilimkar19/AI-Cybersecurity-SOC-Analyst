@@ -23,6 +23,7 @@ from models.enums import DecisionType, InvestigationStatus
 # Node identifiers. Kept here so routing and the registry share one source of truth.
 INGEST_SEED = "ingest_seed"
 LOG_ANALYSIS = "log_analysis"
+THREAT_DETECTION = "threat_detection"
 TRIAGE = "triage"
 HUMAN_GATE = "human_gate"
 CLOSE = "close"
@@ -32,6 +33,7 @@ CLOSE = "close"
 _OWNER_RUNTIME = "graph-runtime"
 _OWNER_HUMAN = "human-review"
 _OWNER_LOG_ANALYZER = "log-analyzer"
+_OWNER_THREAT_DETECTOR = "threat-detector"
 
 
 def _utcnow() -> str:
@@ -129,16 +131,91 @@ def log_analysis(state: GraphState) -> dict[str, Any]:
     }
 
 
-def triage(state: GraphState) -> dict[str, Any]:
-    """Stub control node: the attachment point for the remaining agent pipeline.
+def threat_detection(state: GraphState) -> dict[str, Any]:
+    """Assess the normalized evidence into a verdict, IoCs, techniques, and severity.
 
-    For now it simply advances the investigation to the human approval gate.
+    Reads the findings the Log Analyzer wrote and writes only the assessment and
+    its own agent record — evidence stays exactly as it was ingested, so what was
+    *seen* remains distinguishable from what was *concluded* about it.
+
+    Estate context (which networks are internal, which assets are critical) comes
+    from the pinned ``config_snapshot`` rather than from live configuration, so a
+    replayed investigation is assessed against the same estate it originally was.
     """
+    from agents.threat_detector import AGENT_NAME, ThreatDetector
+    from models.threat import ThreatDetectionRequest
+
+    findings = state["investigation"]
+    snapshot = state.get("config_snapshot", {})
+    request = ThreatDetectionRequest(
+        investigation_id=state["investigation_id"],
+        events=list(findings.get("normalized_events", [])),
+        timeline=list(findings.get("timeline", [])),
+        coverage_gaps=list(findings.get("coverage_gaps", [])),
+        internal_networks=list(snapshot.get("internal_networks", [])),
+        critical_assets=list(snapshot.get("critical_assets", [])),
+    )
+
+    outcome = ThreatDetector().assess(request)
+    result = outcome.output
+
+    return {
+        "current_node": THREAT_DETECTION,
+        "updated_at": _utcnow(),
+        "investigation": {"threat_assessment": result.model_dump(mode="json")},
+        "agents": {
+            AGENT_NAME: {
+                "agent_name": AGENT_NAME,
+                "last_output": {
+                    "verdict": result.verdict.value,
+                    "severity": result.severity.level.value,
+                    "severity_score": result.severity.score,
+                    "triage_priority": result.triage_priority.value,
+                    "signals": len(result.signals),
+                    "iocs": len(result.iocs),
+                    "attack_techniques": [
+                        technique.technique_id for technique in result.attack_techniques
+                    ],
+                    "enrichment_status": result.enrichment_status.value,
+                    "escalation_required": result.escalation_required,
+                    "prompt_version": outcome.prompt_version,
+                },
+                "confidence": outcome.confidence,
+                "retry_count": 0,
+                "tool_calls": outcome.tool_calls,
+            }
+        },
+        "node_history": [
+            _transition(
+                THREAT_DETECTION,
+                _OWNER_THREAT_DETECTOR,
+                "completed",
+                f"verdict={result.verdict.value}, severity={result.severity.level.value}, "
+                f"{len(result.signals)} signal(s), {len(result.attack_techniques)} technique(s)",
+            )
+        ],
+    }
+
+
+def triage(state: GraphState) -> dict[str, Any]:
+    """Set the investigation's disposition from the assessment and hand it to a human.
+
+    Deliberately *not* a routing decision. SAD §5 anticipates branching on the
+    verdict once the downstream fan-out exists; what it must never become is an
+    automatic close, because closing an investigation is a consequential outcome
+    and invariant #1 reserves those for a person. So triage records what the
+    agents concluded and advances to the gate on every path — including benign.
+    """
+    assessment = state["investigation"].get("threat_assessment") or {}
+    verdict = str(assessment.get("verdict", "")) or "not assessed"
+    priority = str(assessment.get("triage_priority", "")) or "unset"
+    detail = f"advanced to gate (verdict={verdict}, priority={priority})"
+
     return {
         "status": InvestigationStatus.AWAITING_APPROVAL.value,
         "current_node": TRIAGE,
         "updated_at": _utcnow(),
-        "node_history": [_transition(TRIAGE, _OWNER_RUNTIME, "completed", "advanced to gate")],
+        "node_history": [_transition(TRIAGE, _OWNER_RUNTIME, "completed", detail)],
     }
 
 
@@ -149,6 +226,10 @@ def human_gate(state: GraphState) -> dict[str, Any]:
     sees "awaiting human". On resume the recorded decision is consumed and appended
     to the conversation record for audit. No consequential action node is reachable
     without traversing this gate (invariant #1).
+
+    The payload carries the assessment's headline so the analyst is deciding on a
+    stated finding rather than on an opaque prompt, and it flags an escalated case
+    explicitly — a low-confidence critical must not look like a routine approval.
     """
     decision = cast(
         "dict[str, Any]",
@@ -157,6 +238,7 @@ def human_gate(state: GraphState) -> dict[str, Any]:
                 "kind": "human_approval",
                 "investigation_id": state["investigation_id"],
                 "reason": "awaiting analyst approval before any consequential action",
+                **_gate_summary(state),
             }
         ),
     )
@@ -167,6 +249,26 @@ def human_gate(state: GraphState) -> dict[str, Any]:
         "node_history": [
             _transition(HUMAN_GATE, _OWNER_HUMAN, "completed", f"decision={decision['decision']}")
         ],
+    }
+
+
+def _gate_summary(state: GraphState) -> dict[str, Any]:
+    """What the analyst is being asked to weigh, drawn from the assessment."""
+    assessment = state["investigation"].get("threat_assessment")
+    if not assessment:
+        return {"assessed": False}
+
+    severity = assessment.get("severity") or {}
+    return {
+        "assessed": True,
+        "verdict": assessment.get("verdict"),
+        "severity": severity.get("level"),
+        "severity_score": severity.get("score"),
+        "triage_priority": assessment.get("triage_priority"),
+        "confidence": assessment.get("confidence"),
+        "enrichment_status": assessment.get("enrichment_status"),
+        "escalation_required": bool(assessment.get("escalation_required")),
+        "escalation_reason": assessment.get("escalation_reason"),
     }
 
 
