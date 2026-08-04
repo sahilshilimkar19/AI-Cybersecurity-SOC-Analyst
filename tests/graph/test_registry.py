@@ -6,6 +6,7 @@ from graph.nodes import (
     HUMAN_GATE,
     INGEST_SEED,
     LOG_ANALYSIS,
+    REPORT,
     THREAT_DETECTION,
     TRIAGE,
 )
@@ -19,6 +20,7 @@ def test_registry_has_the_expected_nodes_in_build_order() -> None:
         LOG_ANALYSIS,
         THREAT_DETECTION,
         CVE_RESEARCH,
+        REPORT,
         TRIAGE,
         HUMAN_GATE,
         CLOSE,
@@ -30,6 +32,7 @@ def test_agent_nodes_are_owned_by_their_agent() -> None:
     assert by_name[LOG_ANALYSIS].owner == "log-analyzer"
     assert by_name[THREAT_DETECTION].owner == "threat-detector"
     assert by_name[CVE_RESEARCH].owner == "cve-research"
+    assert by_name[REPORT].owner == "incident-reporter"
 
 
 def test_every_node_has_an_owner_and_callable_action() -> None:

@@ -9,6 +9,7 @@ import pytest
 
 from prompts.assembly import (
     CVE_RESEARCH_PROMPT,
+    INCIDENT_REPORTER_PROMPT,
     LOG_ANALYZER_PROMPT,
     PROMPT_MANIFEST,
     THREAT_DETECTOR_PROMPT,
@@ -136,11 +137,40 @@ def test_cve_research_prompt_is_bound_to_its_output_contract() -> None:
     assert "CveResearchResult" in CVE_RESEARCH_PROMPT.output_contract
 
 
+def test_incident_reporter_prompt_forbids_unsupported_claims() -> None:
+    """The rule the whole sprint turns on."""
+    task = INCIDENT_REPORTER_PROMPT.task.lower()
+    assert "only supported claims" in task
+    assert "introduce no finding" in task
+
+
+def test_incident_reporter_prompt_requires_marking_gaps() -> None:
+    task = INCIDENT_REPORTER_PROMPT.task.lower()
+    assert "mark gaps, never omit them" in task
+    assert "looks complete" in task
+
+
+def test_incident_reporter_prompt_forbids_re_assessing_upstream_conclusions() -> None:
+    task = INCIDENT_REPORTER_PROMPT.task.lower()
+    assert "do not re-assess" in task
+    assert "restate them, do not revise them" in task
+
+
+def test_incident_reporter_prompt_requires_caveats_in_the_summary() -> None:
+    task = INCIDENT_REPORTER_PROMPT.task.lower()
+    assert "not only in an appendix" in task
+
+
+def test_incident_reporter_prompt_is_bound_to_its_output_contract() -> None:
+    assert "IncidentReport" in INCIDENT_REPORTER_PROMPT.output_contract
+
+
 def test_every_shipped_prompt_is_pinned_in_the_manifest() -> None:
     assert PROMPT_MANIFEST["preamble"] == PREAMBLE_VERSION
     assert PROMPT_MANIFEST[LOG_ANALYZER_PROMPT.name] == LOG_ANALYZER_PROMPT.version
     assert PROMPT_MANIFEST[THREAT_DETECTOR_PROMPT.name] == THREAT_DETECTOR_PROMPT.version
     assert PROMPT_MANIFEST[CVE_RESEARCH_PROMPT.name] == CVE_RESEARCH_PROMPT.version
+    assert PROMPT_MANIFEST[INCIDENT_REPORTER_PROMPT.name] == INCIDENT_REPORTER_PROMPT.version
 
 
 def test_every_agent_prompt_inherits_the_shared_preamble() -> None:
@@ -148,13 +178,14 @@ def test_every_agent_prompt_inherits_the_shared_preamble() -> None:
         LOG_ANALYZER_PROMPT.name,
         THREAT_DETECTOR_PROMPT.name,
         CVE_RESEARCH_PROMPT.name,
+        INCIDENT_REPORTER_PROMPT.name,
     ):
         assert SHARED_PREAMBLE in assemble_prompt(name)
 
 
 def test_every_agent_prompt_restates_that_it_only_recommends() -> None:
     """Invariant #2 must survive in each prompt, not only in the preamble."""
-    for asset in (THREAT_DETECTOR_PROMPT, CVE_RESEARCH_PROMPT):
+    for asset in (THREAT_DETECTOR_PROMPT, CVE_RESEARCH_PROMPT, INCIDENT_REPORTER_PROMPT):
         assert "never" in asset.task.lower()
 
 

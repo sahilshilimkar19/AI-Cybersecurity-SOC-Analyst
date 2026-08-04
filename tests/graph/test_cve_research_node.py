@@ -79,7 +79,7 @@ ASSETS = [
 def test_a_benign_verdict_skips_research() -> None:
     """Researching CVEs for activity nothing flagged spends budget on no question."""
     state = {"investigation": {"threat_assessment": {"verdict": "benign"}}}
-    assert route_after_threat(state) == "triage"  # type: ignore[arg-type]
+    assert route_after_threat(state) == "report"  # type: ignore[arg-type]
 
 
 def test_a_suspicious_or_malicious_verdict_earns_the_deeper_work() -> None:
@@ -103,7 +103,7 @@ def test_the_benign_path_still_reaches_the_human_gate(
     nodes = [t["node"] for t in result.node_history]
 
     assert "cve_research" not in nodes
-    assert nodes == ["ingest_seed", "log_analysis", "threat_detection", "triage"]
+    assert nodes == ["ingest_seed", "log_analysis", "threat_detection", "report", "triage"]
     assert result.awaiting_human is True
     assert result.status == InvestigationStatus.AWAITING_APPROVAL.value
 
@@ -135,6 +135,7 @@ def test_the_node_runs_between_threat_detection_and_triage(
         "log_analysis",
         "threat_detection",
         "cve_research",
+        "report",
         "triage",
     ]
 
@@ -186,7 +187,12 @@ def test_the_node_writes_only_its_own_agent_record(
     )
     agents = service.raw_state("inv-1")["agents"]
 
-    assert set(agents) == {"log_analyzer", "threat_detector", "cve_research"}
+    assert set(agents) == {
+        "log_analyzer",
+        "threat_detector",
+        "cve_research",
+        "incident_reporter",
+    }
     record = agents["cve_research"]
     assert record["last_output"]["prompt_version"] == "1.0.0"
     assert record["last_output"]["searched_products"] == ["Apache Log4j"]
@@ -297,6 +303,7 @@ def test_adding_a_third_agent_created_no_path_around_the_gate(
         "log_analysis",
         "threat_detection",
         "cve_research",
+        "report",
         "triage",
         "human_gate",
         "close",

@@ -40,6 +40,7 @@ def test_redirect_re_enters_triage_then_can_be_approved(
         "ingest_seed",
         "log_analysis",
         "threat_detection",
+        "report",
         "triage",
         "human_gate",
         "triage",
