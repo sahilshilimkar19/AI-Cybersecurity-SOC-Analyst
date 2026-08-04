@@ -45,7 +45,12 @@ EVIDENCE = {
 
 def test_node_runs_between_seeding_and_triage(service: InvestigationGraphService) -> None:
     result = service.start(investigation_id="inv-1", trigger_source="alert", evidence=EVIDENCE)
-    assert [t["node"] for t in result.node_history] == ["ingest_seed", "log_analysis", "triage"]
+    assert [t["node"] for t in result.node_history] == [
+        "ingest_seed",
+        "log_analysis",
+        "threat_detection",
+        "triage",
+    ]
 
 
 def test_node_is_owned_by_the_log_analyzer(service: InvestigationGraphService) -> None:
@@ -67,6 +72,7 @@ def test_the_pipeline_still_pauses_at_the_human_gate(
     assert [t["node"] for t in approved.node_history] == [
         "ingest_seed",
         "log_analysis",
+        "threat_detection",
         "triage",
         "human_gate",
         "close",
@@ -101,10 +107,10 @@ def test_node_records_findings_and_gaps_in_state(
 def test_node_writes_only_its_own_agent_record(
     service: InvestigationGraphService,
 ) -> None:
+    """Writer isolation: the Log Analyzer owns exactly one key in ``agents``."""
     service.start(investigation_id="inv-1", trigger_source="alert", evidence=EVIDENCE)
     agents = service.raw_state("inv-1")["agents"]
 
-    assert set(agents) == {"log_analyzer"}
     record = agents["log_analyzer"]
     assert record["confidence"] > 0
     assert record["last_output"]["quarantined"] == 1

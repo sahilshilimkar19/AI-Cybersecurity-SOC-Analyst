@@ -156,7 +156,13 @@ addopts = "-ra --strict-markers"
 # ---------------------------------------------------------------------------
 [tool.coverage.run]
 branch = true
-source = ["config", "models", "backend", "graph", "memory", "rag"]
+# Every production package. Agent, tool, integration, and prompt code carries the
+# platform's safety behavior, so leaving it out of the default report would let
+# untested guardrails look covered.
+source = [
+    "config", "models", "backend", "graph", "memory",
+    "rag", "tools", "agents", "integrations", "prompts", "services",
+]
 omit = ["tests/*", "backend/db/migrations/*"]
 
 [tool.coverage.report]

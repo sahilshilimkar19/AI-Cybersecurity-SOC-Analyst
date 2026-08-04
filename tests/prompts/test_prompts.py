@@ -10,6 +10,7 @@ import pytest
 from prompts.assembly import (
     LOG_ANALYZER_PROMPT,
     PROMPT_MANIFEST,
+    THREAT_DETECTOR_PROMPT,
     assemble_prompt,
     get_prompt,
     wrap_untrusted,
@@ -67,9 +68,52 @@ def test_prompt_is_bound_to_an_output_contract() -> None:
     assert "LogAnalysisResult" in LOG_ANALYZER_PROMPT.output_contract
 
 
+def test_threat_detector_prompt_separates_evidence_from_inference() -> None:
+    """The defining constraint of an auditable assessment."""
+    task = THREAT_DETECTOR_PROMPT.task.lower()
+    assert "separate evidence from inference" in task
+    assert "observation" in task
+    assert "inference" in task
+
+
+def test_threat_detector_prompt_forbids_fabricated_reputation() -> None:
+    task = THREAT_DETECTOR_PROMPT.task.lower()
+    assert "never fabricate reputation" in task
+    assert "named intelligence source" in task
+    assert "'clean' is not" in task
+
+
+def test_threat_detector_prompt_forbids_inventing_techniques() -> None:
+    task = THREAT_DETECTOR_PROMPT.task.lower()
+    assert "do not invent technique" in task
+    assert "cite each one" in task
+
+
+def test_threat_detector_prompt_requires_explicit_escalation() -> None:
+    task = THREAT_DETECTOR_PROMPT.task.lower()
+    assert "escalate ambiguous high-impact cases" in task
+    assert "let a human" in task
+
+
+def test_threat_detector_prompt_keeps_gaps_out_of_the_severity() -> None:
+    task = THREAT_DETECTOR_PROMPT.task.lower()
+    assert "lowers your confidence" in task
+    assert "does not lower the severity" in task
+
+
+def test_threat_detector_prompt_is_bound_to_its_output_contract() -> None:
+    assert "ThreatDetectionResult" in THREAT_DETECTOR_PROMPT.output_contract
+
+
 def test_every_shipped_prompt_is_pinned_in_the_manifest() -> None:
     assert PROMPT_MANIFEST["preamble"] == PREAMBLE_VERSION
     assert PROMPT_MANIFEST[LOG_ANALYZER_PROMPT.name] == LOG_ANALYZER_PROMPT.version
+    assert PROMPT_MANIFEST[THREAT_DETECTOR_PROMPT.name] == THREAT_DETECTOR_PROMPT.version
+
+
+def test_every_agent_prompt_inherits_the_shared_preamble() -> None:
+    for name in (LOG_ANALYZER_PROMPT.name, THREAT_DETECTOR_PROMPT.name):
+        assert SHARED_PREAMBLE in assemble_prompt(name)
 
 
 def test_assembled_prompt_includes_preamble_task_and_contract() -> None:
