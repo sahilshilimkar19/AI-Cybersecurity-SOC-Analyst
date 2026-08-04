@@ -20,7 +20,7 @@ LangGraph resolves the reducer metadata on these annotations at runtime, so the
 ``Annotated[...]`` markers must be real objects, not strings.
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Annotated, Any, TypedDict
 
 from models.enums import InvestigationStatus
@@ -205,11 +205,17 @@ def new_state(
     config_snapshot: Mapping[str, Any],
     created_at: str,
     evidence: Mapping[str, Any] | None = None,
+    assets: Sequence[Mapping[str, Any]] | None = None,
 ) -> GraphState:
     """Build a fresh, fully-initialized state for a new investigation.
 
     ``config_snapshot`` is pinned into the state so a run is reproducible even if
     global configuration later drifts (SAD §4 design decision).
+
+    ``assets`` seeds the estate inventory the backend resolved for this
+    investigation. It lives in the shared blackboard rather than in the config
+    snapshot because it is investigation *input* — what the affected machines
+    run — not configuration, and CVE applicability is assessed against it.
     """
     snapshot = dict(config_snapshot)
     snapshot.setdefault("schema_version", STATE_SCHEMA_VERSION)
@@ -224,7 +230,12 @@ def new_state(
         updated_at=created_at,
         node_history=[],
         errors=[],
-        shared=SharedMemory(retrieved_context=[], entities=[], assets=[], working_notes=[]),
+        shared=SharedMemory(
+            retrieved_context=[],
+            entities=[],
+            assets=[dict(item) for item in assets or ()],
+            working_notes=[],
+        ),
         agents={},
         evidence=EvidenceState(
             raw_records=list(dict(evidence or {}).get("raw_records", [])),

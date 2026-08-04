@@ -18,12 +18,13 @@ from typing import Any, cast
 from langgraph.types import interrupt
 
 from graph.state import GraphState, NodeTransition
-from models.enums import DecisionType, InvestigationStatus
+from models.enums import DecisionType, InvestigationStatus, Verdict
 
 # Node identifiers. Kept here so routing and the registry share one source of truth.
 INGEST_SEED = "ingest_seed"
 LOG_ANALYSIS = "log_analysis"
 THREAT_DETECTION = "threat_detection"
+CVE_RESEARCH = "cve_research"
 TRIAGE = "triage"
 HUMAN_GATE = "human_gate"
 CLOSE = "close"
@@ -34,6 +35,7 @@ _OWNER_RUNTIME = "graph-runtime"
 _OWNER_HUMAN = "human-review"
 _OWNER_LOG_ANALYZER = "log-analyzer"
 _OWNER_THREAT_DETECTOR = "threat-detector"
+_OWNER_CVE_RESEARCH = "cve-research"
 
 
 def _utcnow() -> str:
@@ -197,6 +199,104 @@ def threat_detection(state: GraphState) -> dict[str, Any]:
     }
 
 
+def cve_research(state: GraphState) -> dict[str, Any]:
+    """Research the vulnerabilities relevant to an assessed threat.
+
+    Reached only when the Threat Detector returned something other than benign
+    (see :func:`route_after_threat`). Reads the assessment and the asset
+    inventory, writes only the dossier and its own agent record.
+
+    CVE identifiers named in the evidence are collected and looked up rather than
+    believed: a log line can claim anything, and a scanner's assertion is a
+    starting point for research, not a finding (invariant #3).
+    """
+    from agents.cve_research import AGENT_NAME, CveResearcher, find_cve_ids
+    from models.vulnerability import AssetContext, CveResearchRequest
+
+    findings = state["investigation"]
+    assets, unreadable = _asset_contexts(state["shared"].get("assets", []), AssetContext)
+
+    outcome = CveResearcher().research(
+        CveResearchRequest(
+            investigation_id=state["investigation_id"],
+            threat_assessment=findings.get("threat_assessment"),
+            assets=assets,
+            referenced_cve_ids=find_cve_ids(
+                " ".join(
+                    str(event.get("message", "")) for event in findings.get("normalized_events", [])
+                )
+            ),
+        )
+    )
+    result = outcome.output
+
+    detail = (
+        f"{len(result.cves)} confirmed, {len(result.candidates)} candidate(s) "
+        f"across {len(result.searched_products)} product(s)"
+    )
+    if unreadable:
+        detail += f"; {unreadable} asset record(s) unreadable"
+
+    return {
+        "current_node": CVE_RESEARCH,
+        "updated_at": _utcnow(),
+        "investigation": {"vulnerability_dossier": result.model_dump(mode="json")},
+        "agents": {
+            AGENT_NAME: {
+                "agent_name": AGENT_NAME,
+                "last_output": {
+                    "confirmed": len(result.cves),
+                    "candidates": len(result.candidates),
+                    "searched_products": result.searched_products,
+                    "highest_severity": (
+                        result.highest_severity.value if result.highest_severity else None
+                    ),
+                    "stale": result.stale,
+                    "prompt_version": outcome.prompt_version,
+                },
+                "confidence": outcome.confidence,
+                "retry_count": 0,
+                "tool_calls": outcome.tool_calls,
+            }
+        },
+        "node_history": [_transition(CVE_RESEARCH, _OWNER_CVE_RESEARCH, "completed", detail)],
+    }
+
+
+def _asset_contexts(payload: list[dict[str, Any]], model: type[Any]) -> tuple[list[Any], int]:
+    """Validate seeded asset records, counting rather than raising on bad ones.
+
+    One malformed inventory entry must not cost the whole dossier; the count
+    becomes part of the node's transition detail so the shortfall is visible.
+    """
+    assets: list[Any] = []
+    unreadable = 0
+    for item in payload:
+        try:
+            assets.append(model.model_validate(item))
+        except ValueError:
+            unreadable += 1
+    return assets, unreadable
+
+
+def route_after_threat(state: GraphState) -> str:
+    """Branch on the verdict (SAD §5 conditional routing).
+
+    A benign assessment skips vulnerability research and goes straight to triage:
+    researching CVEs for activity nothing flagged spends real time and real API
+    budget to answer a question nobody asked. Anything else — suspicious or
+    malicious — earns the deeper work.
+
+    Note what this branch is *not*: it is not a route to ``close``. Both paths
+    converge on triage and then on the human gate, because closing an
+    investigation is itself a consequential outcome (invariant #1).
+    """
+    assessment = state["investigation"].get("threat_assessment") or {}
+    if assessment.get("verdict") == Verdict.BENIGN.value:
+        return TRIAGE
+    return CVE_RESEARCH
+
+
 def triage(state: GraphState) -> dict[str, Any]:
     """Set the investigation's disposition from the assessment and hand it to a human.
 
@@ -206,10 +306,17 @@ def triage(state: GraphState) -> dict[str, Any]:
     and invariant #1 reserves those for a person. So triage records what the
     agents concluded and advances to the gate on every path — including benign.
     """
-    assessment = state["investigation"].get("threat_assessment") or {}
+    findings = state["investigation"]
+    assessment = findings.get("threat_assessment") or {}
     verdict = str(assessment.get("verdict", "")) or "not assessed"
     priority = str(assessment.get("triage_priority", "")) or "unset"
-    detail = f"advanced to gate (verdict={verdict}, priority={priority})"
+    detail = f"advanced to gate (verdict={verdict}, priority={priority}"
+
+    dossier = findings.get("vulnerability_dossier")
+    detail += (
+        f", {len(dossier.get('cves', []))} confirmed CVE(s)" if dossier else ", no CVE research"
+    )
+    detail += ")"
 
     return {
         "status": InvestigationStatus.AWAITING_APPROVAL.value,
@@ -259,6 +366,7 @@ def _gate_summary(state: GraphState) -> dict[str, Any]:
         return {"assessed": False}
 
     severity = assessment.get("severity") or {}
+    dossier = state["investigation"].get("vulnerability_dossier") or {}
     return {
         "assessed": True,
         "verdict": assessment.get("verdict"),
@@ -269,6 +377,9 @@ def _gate_summary(state: GraphState) -> dict[str, Any]:
         "enrichment_status": assessment.get("enrichment_status"),
         "escalation_required": bool(assessment.get("escalation_required")),
         "escalation_reason": assessment.get("escalation_reason"),
+        "confirmed_cves": [item["record"]["cve_id"] for item in dossier.get("cves", [])],
+        "candidate_cve_count": len(dossier.get("candidates", [])),
+        "cve_research_stale": bool(dossier.get("stale")) if dossier else None,
     }
 
 

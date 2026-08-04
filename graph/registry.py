@@ -14,12 +14,14 @@ from typing import Any
 
 from graph.nodes import (
     CLOSE,
+    CVE_RESEARCH,
     HUMAN_GATE,
     INGEST_SEED,
     LOG_ANALYSIS,
     THREAT_DETECTION,
     TRIAGE,
     close,
+    cve_research,
     human_gate,
     ingest_seed,
     log_analysis,
@@ -47,6 +49,7 @@ _REGISTRY: tuple[NodeSpec, ...] = (
     NodeSpec(INGEST_SEED, owner="graph-runtime", action=ingest_seed),
     NodeSpec(LOG_ANALYSIS, owner="log-analyzer", action=log_analysis),
     NodeSpec(THREAT_DETECTION, owner="threat-detector", action=threat_detection),
+    NodeSpec(CVE_RESEARCH, owner="cve-research", action=cve_research),
     NodeSpec(TRIAGE, owner="graph-runtime", action=triage),
     NodeSpec(HUMAN_GATE, owner="human-review", action=human_gate, retriable=False),
     NodeSpec(CLOSE, owner="graph-runtime", action=close),

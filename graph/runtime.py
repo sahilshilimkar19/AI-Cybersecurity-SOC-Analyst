@@ -8,7 +8,7 @@ service boundary, so an invalid resume fails fast before touching the graph.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -82,11 +82,14 @@ class InvestigationGraphService:
         trigger_source: str,
         config_snapshot: Mapping[str, Any] | None = None,
         evidence: Mapping[str, Any] | None = None,
+        assets: Sequence[Mapping[str, Any]] | None = None,
     ) -> GraphRunResult:
         """Start a new investigation, running until the human gate or completion.
 
         ``evidence`` seeds the raw records collected by the backend, which the
-        Log Analyzer node then normalizes and correlates.
+        Log Analyzer node then normalizes and correlates. ``assets`` seeds the
+        software inventory of the machines involved, which is what lets CVE
+        research confirm applicability rather than only suspect it.
         """
         state = new_state(
             investigation_id=investigation_id,
@@ -94,6 +97,7 @@ class InvestigationGraphService:
             config_snapshot=config_snapshot or {},
             created_at=self._clock(),
             evidence=evidence,
+            assets=assets,
         )
         self._graph.invoke(state, self._config(investigation_id))
         return self._result(investigation_id)

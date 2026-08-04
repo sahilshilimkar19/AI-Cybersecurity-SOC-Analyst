@@ -6,16 +6,22 @@ The compiled graph checkpoints through the supplied checkpointer.
 
 Pipeline:
 
-    START -> ingest_seed -> log_analysis -> threat_detection -> triage
-                                                                  |
-                                          human_gate --approve--> close -> END
-                                              ^        \\--redirect--/
+    START -> ingest_seed -> log_analysis -> threat_detection --benign------> triage
+                                                    \\--suspicious/malicious--> cve_research --^
+                                                                                  |
+                                                      human_gate --approve--> close -> END
+                                                          ^        \\--redirect--/
 
-``log_analysis`` establishes the evidence and ``threat_detection`` assesses it;
-``triage`` remains the attachment point for the agents that follow. Note that the
-benign path is not short-circuited to ``close``: every disposition traverses the
-human gate, because closing an investigation is itself a consequential outcome
-(invariant #1).
+``log_analysis`` establishes the evidence, ``threat_detection`` assesses it, and
+``cve_research`` runs only when that assessment found something — the verdict
+branch from SAD §5. ``triage`` remains the attachment point for the agents that
+follow.
+
+Two properties of the branch are load-bearing. It skips *work*, never the
+*gate*: both arms converge on triage and then on the human interrupt, because
+closing an investigation is itself a consequential outcome (invariant #1). And
+sequencing lives in the edges rather than inside the nodes (EDS §5), so no node
+decides what runs after it.
 """
 
 from __future__ import annotations
@@ -26,12 +32,14 @@ from langgraph.graph import END, START, StateGraph
 
 from graph.nodes import (
     CLOSE,
+    CVE_RESEARCH,
     HUMAN_GATE,
     INGEST_SEED,
     LOG_ANALYSIS,
     THREAT_DETECTION,
     TRIAGE,
     route_after_gate,
+    route_after_threat,
 )
 from graph.registry import node_registry
 from graph.state import GraphState
@@ -60,7 +68,12 @@ def build_investigation_graph(
     builder.add_edge(START, INGEST_SEED)
     builder.add_edge(INGEST_SEED, LOG_ANALYSIS)
     builder.add_edge(LOG_ANALYSIS, THREAT_DETECTION)
-    builder.add_edge(THREAT_DETECTION, TRIAGE)
+    builder.add_conditional_edges(
+        THREAT_DETECTION,
+        route_after_threat,
+        {CVE_RESEARCH: CVE_RESEARCH, TRIAGE: TRIAGE},
+    )
+    builder.add_edge(CVE_RESEARCH, TRIAGE)
     builder.add_edge(TRIAGE, HUMAN_GATE)
     builder.add_conditional_edges(
         HUMAN_GATE,
