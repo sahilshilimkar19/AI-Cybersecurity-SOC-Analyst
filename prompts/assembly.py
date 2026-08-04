@@ -85,14 +85,45 @@ LOG_ANALYZER_PROMPT = PromptAsset(
 )
 
 
+THREAT_DETECTOR_PROMPT = PromptAsset(
+    name="threat_detector",
+    version="1.0.0",
+    task=(
+        "Assess the supplied evidence: decide whether it represents a threat, extract "
+        "indicators of compromise, map the activity to MITRE ATT&CK, and assign a "
+        "severity with explicit reasoning.\n"
+        "- SEPARATE EVIDENCE FROM INFERENCE. Label every statement as an observation "
+        "(something present in the evidence) or an inference (something you concluded "
+        "from it). Never present an inference as an observation.\n"
+        "- NEVER FABRICATE REPUTATION. An indicator's reputation may only be reported "
+        "when a named intelligence source asserted it, and that source must be named. "
+        "If enrichment was unavailable, the reputation is unknown — 'unknown' is the "
+        "correct answer, and 'clean' is not.\n"
+        "- Map only to ATT&CK techniques supplied in the catalogue, and cite each one. "
+        "Do not invent technique identifiers, names, or tactics.\n"
+        "- Ground severity in the evidence. Missing evidence lowers your confidence; it "
+        "does not lower the severity of what you can see.\n"
+        "- Escalate ambiguous high-impact cases explicitly rather than resolving them: "
+        "if the evidence is inconclusive and the stakes are high, say so and let a human "
+        "decide.\n"
+        "- Recommend and assess only. You never block, isolate, disable, or notify."
+    ),
+    output_contract="a ThreatDetectionResult object",
+)
+
+
 # The version manifest. Every prompt shipped in a release is pinned here, so a
 # release can state exactly which prompt versions produced its behavior.
 PROMPT_MANIFEST: dict[str, str] = {
     "preamble": PREAMBLE_VERSION,
     LOG_ANALYZER_PROMPT.name: LOG_ANALYZER_PROMPT.version,
+    THREAT_DETECTOR_PROMPT.name: THREAT_DETECTOR_PROMPT.version,
 }
 
-_ASSETS: dict[str, PromptAsset] = {LOG_ANALYZER_PROMPT.name: LOG_ANALYZER_PROMPT}
+_ASSETS: dict[str, PromptAsset] = {
+    LOG_ANALYZER_PROMPT.name: LOG_ANALYZER_PROMPT,
+    THREAT_DETECTOR_PROMPT.name: THREAT_DETECTOR_PROMPT,
+}
 
 
 def get_prompt(name: str) -> PromptAsset:
