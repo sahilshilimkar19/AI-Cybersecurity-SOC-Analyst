@@ -25,6 +25,7 @@ INGEST_SEED = "ingest_seed"
 LOG_ANALYSIS = "log_analysis"
 THREAT_DETECTION = "threat_detection"
 CVE_RESEARCH = "cve_research"
+REPORT = "report"
 TRIAGE = "triage"
 HUMAN_GATE = "human_gate"
 CLOSE = "close"
@@ -36,6 +37,7 @@ _OWNER_HUMAN = "human-review"
 _OWNER_LOG_ANALYZER = "log-analyzer"
 _OWNER_THREAT_DETECTOR = "threat-detector"
 _OWNER_CVE_RESEARCH = "cve-research"
+_OWNER_INCIDENT_REPORTER = "incident-reporter"
 
 
 def _utcnow() -> str:
@@ -279,6 +281,79 @@ def _asset_contexts(payload: list[dict[str, Any]], model: type[Any]) -> tuple[li
     return assets, unreadable
 
 
+def report(state: GraphState) -> dict[str, Any]:
+    """Synthesize every finding into the report a human will actually read.
+
+    Runs on **both** arms of the verdict branch. A benign investigation still
+    produces a record: "we looked and found nothing" is a conclusion someone may
+    have to defend later, and an investigation that leaves no document behind
+    cannot be reviewed at all.
+
+    The node writes only the report sub-state. It re-reads the findings rather
+    than receiving them, so the report is reproducible from a checkpoint alone.
+    """
+    from agents.incident_reporter import AGENT_NAME, IncidentReporter
+    from models.report import IncidentReportRequest
+
+    findings = state["investigation"]
+    snapshot = state.get("config_snapshot", {})
+
+    outcome = IncidentReporter().report(
+        IncidentReportRequest(
+            investigation_id=state["investigation_id"],
+            trigger_source=state.get("trigger_source"),
+            opened_at=None,
+            log_analysis={
+                "events": list(findings.get("normalized_events", [])),
+                "timeline": list(findings.get("timeline", [])),
+                "coverage_gaps": list(findings.get("coverage_gaps", [])),
+            }
+            if findings.get("normalized_events")
+            else None,
+            threat_assessment=findings.get("threat_assessment"),
+            vulnerability_dossier=findings.get("vulnerability_dossier"),
+            critical_assets=list(snapshot.get("critical_assets", [])),
+        )
+    )
+    result = outcome.output
+
+    return {
+        "current_node": REPORT,
+        "updated_at": _utcnow(),
+        "report": {
+            "executive_summary": result.executive_summary,
+            "technical_report": result.technical_body,
+            "citations": [citation.model_dump(mode="json") for citation in result.citations],
+            "report_status": result.status.value,
+        },
+        "agents": {
+            AGENT_NAME: {
+                "agent_name": AGENT_NAME,
+                "last_output": {
+                    "findings": len(result.findings),
+                    "timeline_entries": len(result.timeline),
+                    "affected_assets": [asset.hostname for asset in result.affected_assets],
+                    "caveats": [caveat.kind.value for caveat in result.caveats],
+                    "complete": result.is_complete,
+                    "prompt_version": outcome.prompt_version,
+                },
+                "confidence": outcome.confidence,
+                "retry_count": 0,
+                "tool_calls": outcome.tool_calls,
+            }
+        },
+        "node_history": [
+            _transition(
+                REPORT,
+                _OWNER_INCIDENT_REPORTER,
+                "completed",
+                f"{len(result.findings)} finding(s), {len(result.caveats)} caveat(s), "
+                f"{len(result.citations)} citation(s)",
+            )
+        ],
+    }
+
+
 def route_after_threat(state: GraphState) -> str:
     """Branch on the verdict (SAD §5 conditional routing).
 
@@ -288,12 +363,13 @@ def route_after_threat(state: GraphState) -> str:
     malicious — earns the deeper work.
 
     Note what this branch is *not*: it is not a route to ``close``. Both paths
-    converge on triage and then on the human gate, because closing an
-    investigation is itself a consequential outcome (invariant #1).
+    converge on the report, then triage, then the human gate — because closing an
+    investigation is itself a consequential outcome (invariant #1), and because
+    even a benign investigation leaves a record behind.
     """
     assessment = state["investigation"].get("threat_assessment") or {}
     if assessment.get("verdict") == Verdict.BENIGN.value:
-        return TRIAGE
+        return REPORT
     return CVE_RESEARCH
 
 
@@ -316,6 +392,7 @@ def triage(state: GraphState) -> dict[str, Any]:
     detail += (
         f", {len(dossier.get('cves', []))} confirmed CVE(s)" if dossier else ", no CVE research"
     )
+    detail += ", report drafted" if state["report"].get("technical_report") else ", no report"
     detail += ")"
 
     return {
@@ -380,6 +457,10 @@ def _gate_summary(state: GraphState) -> dict[str, Any]:
         "confirmed_cves": [item["record"]["cve_id"] for item in dossier.get("cves", [])],
         "candidate_cve_count": len(dossier.get("candidates", [])),
         "cve_research_stale": bool(dossier.get("stale")) if dossier else None,
+        # The analyst approves a document, not a summary of one: the gate carries
+        # the executive summary it is asking them to sign off.
+        "executive_summary": state["report"].get("executive_summary"),
+        "report_status": state["report"].get("report_status"),
     }
 
 

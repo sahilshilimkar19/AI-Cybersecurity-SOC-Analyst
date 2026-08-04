@@ -18,6 +18,7 @@ from graph.nodes import (
     HUMAN_GATE,
     INGEST_SEED,
     LOG_ANALYSIS,
+    REPORT,
     THREAT_DETECTION,
     TRIAGE,
     close,
@@ -25,6 +26,7 @@ from graph.nodes import (
     human_gate,
     ingest_seed,
     log_analysis,
+    report,
     threat_detection,
     triage,
 )
@@ -50,6 +52,7 @@ _REGISTRY: tuple[NodeSpec, ...] = (
     NodeSpec(LOG_ANALYSIS, owner="log-analyzer", action=log_analysis),
     NodeSpec(THREAT_DETECTION, owner="threat-detector", action=threat_detection),
     NodeSpec(CVE_RESEARCH, owner="cve-research", action=cve_research),
+    NodeSpec(REPORT, owner="incident-reporter", action=report),
     NodeSpec(TRIAGE, owner="graph-runtime", action=triage),
     NodeSpec(HUMAN_GATE, owner="human-review", action=human_gate, retriable=False),
     NodeSpec(CLOSE, owner="graph-runtime", action=close),

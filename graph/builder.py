@@ -6,22 +6,24 @@ The compiled graph checkpoints through the supplied checkpointer.
 
 Pipeline:
 
-    START -> ingest_seed -> log_analysis -> threat_detection --benign------> triage
+    START -> ingest_seed -> log_analysis -> threat_detection --benign-----------> report
                                                     \\--suspicious/malicious--> cve_research --^
                                                                                   |
-                                                      human_gate --approve--> close -> END
-                                                          ^        \\--redirect--/
+                                     triage -> human_gate --approve--> close -> END
+                                       ^           \\--redirect--/
 
-``log_analysis`` establishes the evidence, ``threat_detection`` assesses it, and
+``log_analysis`` establishes the evidence, ``threat_detection`` assesses it,
 ``cve_research`` runs only when that assessment found something — the verdict
-branch from SAD §5. ``triage`` remains the attachment point for the agents that
+branch from SAD §5 — and ``report`` synthesizes whatever exists into the document
+the analyst approves. ``triage`` remains the attachment point for the agents that
 follow.
 
-Two properties of the branch are load-bearing. It skips *work*, never the
-*gate*: both arms converge on triage and then on the human interrupt, because
-closing an investigation is itself a consequential outcome (invariant #1). And
-sequencing lives in the edges rather than inside the nodes (EDS §5), so no node
-decides what runs after it.
+Three properties are load-bearing. The branch skips *work*, never the *gate*:
+both arms converge on the report, then triage, then the human interrupt, because
+closing an investigation is itself a consequential outcome (invariant #1). The
+report is on both arms, so even a benign investigation leaves a record behind.
+And sequencing lives in the edges rather than inside the nodes (EDS §5), so no
+node decides what runs after it.
 """
 
 from __future__ import annotations
@@ -36,6 +38,7 @@ from graph.nodes import (
     HUMAN_GATE,
     INGEST_SEED,
     LOG_ANALYSIS,
+    REPORT,
     THREAT_DETECTION,
     TRIAGE,
     route_after_gate,
@@ -71,9 +74,10 @@ def build_investigation_graph(
     builder.add_conditional_edges(
         THREAT_DETECTION,
         route_after_threat,
-        {CVE_RESEARCH: CVE_RESEARCH, TRIAGE: TRIAGE},
+        {CVE_RESEARCH: CVE_RESEARCH, REPORT: REPORT},
     )
-    builder.add_edge(CVE_RESEARCH, TRIAGE)
+    builder.add_edge(CVE_RESEARCH, REPORT)
+    builder.add_edge(REPORT, TRIAGE)
     builder.add_edge(TRIAGE, HUMAN_GATE)
     builder.add_conditional_edges(
         HUMAN_GATE,
