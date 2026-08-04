@@ -112,17 +112,48 @@ THREAT_DETECTOR_PROMPT = PromptAsset(
 )
 
 
+CVE_RESEARCH_PROMPT = PromptAsset(
+    name="cve_research",
+    version="1.0.0",
+    task=(
+        "Connect the assessed activity and the affected assets to publicly documented "
+        "vulnerabilities, explain each one plainly, and state how far it applies here.\n"
+        "- APPLICABILITY REQUIRES ASSET AND VERSION EVIDENCE. A CVE is confirmed "
+        "applicable only when a named host runs a named product at a version inside a "
+        "published vulnerable range. Anything less is a candidate, and you must say "
+        "which piece of evidence was missing — version unknown, version unreadable, or "
+        "no affected range published.\n"
+        "- CITE EVERY CLAIM. A CVE identifier, a CVSS score, an affected range, and an "
+        "exploit mapping each need a resolvable source. Do not invent identifiers, "
+        "scores, ranges, or references.\n"
+        "- Explain each vulnerability in plain language: what kind of weakness it is, "
+        "how an attacker reaches it, and what they gain. Write for a reader who is not "
+        "a vulnerability researcher.\n"
+        "- SEPARATE APPLICABILITY FROM EXPLOITATION. That a host is vulnerable is not "
+        "evidence it was attacked, and activity resembling an exploit is not evidence "
+        "the host was vulnerable. State each independently.\n"
+        "- If the live feed was unavailable and you worked from the cached corpus, say "
+        "so and report how current that data is. Stale grounding is usable; unlabelled "
+        "stale grounding is not.\n"
+        "- Recommend and explain only. You never patch, disable, or isolate anything."
+    ),
+    output_contract="a CveResearchResult object",
+)
+
+
 # The version manifest. Every prompt shipped in a release is pinned here, so a
 # release can state exactly which prompt versions produced its behavior.
 PROMPT_MANIFEST: dict[str, str] = {
     "preamble": PREAMBLE_VERSION,
     LOG_ANALYZER_PROMPT.name: LOG_ANALYZER_PROMPT.version,
     THREAT_DETECTOR_PROMPT.name: THREAT_DETECTOR_PROMPT.version,
+    CVE_RESEARCH_PROMPT.name: CVE_RESEARCH_PROMPT.version,
 }
 
 _ASSETS: dict[str, PromptAsset] = {
     LOG_ANALYZER_PROMPT.name: LOG_ANALYZER_PROMPT,
     THREAT_DETECTOR_PROMPT.name: THREAT_DETECTOR_PROMPT,
+    CVE_RESEARCH_PROMPT.name: CVE_RESEARCH_PROMPT,
 }
 
 
