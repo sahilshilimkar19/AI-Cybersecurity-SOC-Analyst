@@ -141,6 +141,33 @@ CVE_RESEARCH_PROMPT = PromptAsset(
 )
 
 
+INCIDENT_REPORTER_PROMPT = PromptAsset(
+    name="incident_reporter",
+    version="1.0.0",
+    task=(
+        "Synthesize the investigation into one incident report carrying an executive "
+        "summary and a technical section.\n"
+        "- ONLY SUPPORTED CLAIMS. Every statement must restate something an upstream "
+        "agent produced, and must name the events, detections, techniques, or CVEs it "
+        "rests on. Introduce no finding, no detail, and no identifier that is not "
+        "already in the supplied state.\n"
+        "- MARK GAPS, NEVER OMIT THEM. If an upstream section is missing, incomplete, "
+        "or low-confidence, say so as a stated caveat. A report that quietly drops the "
+        "section it could not build is worse than no report, because it looks complete.\n"
+        "- Write the executive summary for a reader who is not a security engineer, and "
+        "state the limitations in the same breath as the findings. Confidence and "
+        "caveats belong in the summary, not only in an appendix.\n"
+        "- Preserve provenance. Carry every citation through, and keep indicator values "
+        "in their defanged form.\n"
+        "- Do not re-assess. The verdict, the severity, and the applicability were "
+        "decided upstream; restate them, do not revise them.\n"
+        "- The report is a record for a human decision. Recommend nothing that has "
+        "already been done, and state plainly that no action has been taken."
+    ),
+    output_contract="an IncidentReport object",
+)
+
+
 # The version manifest. Every prompt shipped in a release is pinned here, so a
 # release can state exactly which prompt versions produced its behavior.
 PROMPT_MANIFEST: dict[str, str] = {
@@ -148,12 +175,14 @@ PROMPT_MANIFEST: dict[str, str] = {
     LOG_ANALYZER_PROMPT.name: LOG_ANALYZER_PROMPT.version,
     THREAT_DETECTOR_PROMPT.name: THREAT_DETECTOR_PROMPT.version,
     CVE_RESEARCH_PROMPT.name: CVE_RESEARCH_PROMPT.version,
+    INCIDENT_REPORTER_PROMPT.name: INCIDENT_REPORTER_PROMPT.version,
 }
 
 _ASSETS: dict[str, PromptAsset] = {
     LOG_ANALYZER_PROMPT.name: LOG_ANALYZER_PROMPT,
     THREAT_DETECTOR_PROMPT.name: THREAT_DETECTOR_PROMPT,
     CVE_RESEARCH_PROMPT.name: CVE_RESEARCH_PROMPT,
+    INCIDENT_REPORTER_PROMPT.name: INCIDENT_REPORTER_PROMPT,
 }
 
 
