@@ -245,6 +245,51 @@ class Settings(BaseSettings):
         default=900, ge=0, description="TTL for cached retrieval results (0 disables caching)."
     )
 
+    # --- Threat intelligence (Sprint 8) -------------------------------------
+    # IoC reputation enrichment. The default is deliberately "none": an
+    # unconfigured deployment produces assessments explicitly flagged as
+    # enrichment-unavailable rather than ones that quietly assume indicators are
+    # clean. The resilience knobs bound the blast radius of a slow or throttled
+    # provider (EDS §3.12).
+    threat_intel_provider: Literal["none", "virustotal"] = Field(
+        default="none", description="IoC reputation provider; 'none' disables enrichment."
+    )
+    virustotal_api_key: SecretStr = Field(
+        default=SecretStr(""), description="VirusTotal API key (resolved from the secret store)."
+    )
+    virustotal_base_url: str = Field(
+        default="https://www.virustotal.com/api/v3", description="VirusTotal API v3 base URL."
+    )
+    threat_intel_timeout_seconds: float = Field(
+        default=5.0, gt=0, description="Per-request timeout for reputation lookups."
+    )
+    threat_intel_cache_ttl_seconds: int = Field(
+        default=3600, ge=0, description="TTL for cached reputation verdicts (0 disables caching)."
+    )
+    threat_intel_rate_limit_per_minute: int = Field(
+        default=4,
+        ge=1,
+        description="Reputation lookups permitted per minute (VirusTotal's free tier allows 4).",
+    )
+    threat_intel_breaker_failure_threshold: int = Field(
+        default=3, ge=1, description="Consecutive failures before the intel circuit opens."
+    )
+    threat_intel_breaker_reset_seconds: float = Field(
+        default=60.0, gt=0, description="How long the intel circuit stays open before probing."
+    )
+    threat_intel_max_indicators: int = Field(
+        default=25,
+        ge=1,
+        description="Maximum indicators enriched per assessment, bounding cost and latency.",
+    )
+
+    # --- Threat detection (Sprint 8) ----------------------------------------
+    threat_correlation_window_minutes: int = Field(
+        default=30,
+        ge=1,
+        description="Window within which detection heuristics group related activity.",
+    )
+
     @property
     def is_production(self) -> bool:
         """Whether the process is running in the production environment."""

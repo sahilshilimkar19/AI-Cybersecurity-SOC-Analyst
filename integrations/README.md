@@ -13,9 +13,18 @@ degrades exactly one capability (invariant #6).
 | SIEM (Splunk / Elastic), log sources | Evidence ingestion | Log Analyzer |
 | Slack, SMTP | Human notification | Notifications |
 
+## Shipped
+| Module | Covers |
+|---|---|
+| `log_sources.py` | File + in-process log connectors (SIEM adapters satisfy the same protocol) |
+| `resilience.py` | Shared TTL cache, token-bucket rate limiter, circuit breaker |
+| `threat_intel.py` | IoC reputation: unavailable-by-default, in-memory, VirusTotal |
+
 ## Rules
 Read-only by default for data sources (no enforcement authority); validate/normalize all
-external data as untrusted; enforce per-integration rate limits.
+external data as untrusted; enforce per-integration rate limits. Failures are returned as
+typed results, never raised. Estate-internal indicators are never submitted to a third
+party — enrichment must not leak internal topology.
 
 ## Ownership
 Backend + Security / Platform squads.
