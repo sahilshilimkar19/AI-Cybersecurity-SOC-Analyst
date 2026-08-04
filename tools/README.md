@@ -17,6 +17,8 @@ reasoning so they are independently unit-testable (EDS §3.7).
 | `cvss.py` | CVSS v3.1 vector parsing, base scoring, plain-language reading |
 | `versions.py` | Version comparison, published-range matching, CVE applicability |
 | `cwe.py` | Pinned MITRE CWE catalogue with plain explanations |
+| `reporting.py` | Report timeline assembly, affected assets, citation compilation |
+| `rendering.py` | Markdown rendering with untrusted-content escaping |
 
 ## Rules
 - **Least privilege:** each agent may call only its allow-listed tools.
