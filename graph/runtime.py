@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
+from config.logging import get_logger
 from graph.builder import build_investigation_graph
 from graph.checkpointer import build_checkpointer
 from graph.errors import InvalidResumeError, InvestigationNotFoundError
@@ -27,6 +28,8 @@ if TYPE_CHECKING:
     from langgraph.types import StateSnapshot
 
     from config.settings import Settings
+
+_logger = get_logger(__name__)
 
 _VALID_DECISIONS = frozenset(member.value for member in DecisionType)
 
@@ -83,6 +86,7 @@ class InvestigationGraphService:
         config_snapshot: Mapping[str, Any] | None = None,
         evidence: Mapping[str, Any] | None = None,
         assets: Sequence[Mapping[str, Any]] | None = None,
+        on_node: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> GraphRunResult:
         """Start a new investigation, running until the human gate or completion.
 
@@ -90,6 +94,14 @@ class InvestigationGraphService:
         Log Analyzer node then normalizes and correlates. ``assets`` seeds the
         software inventory of the machines involved, which is what lets CVE
         research confirm applicability rather than only suspect it.
+
+        ``on_node`` is called with each node's name and the update it wrote, as
+        the run proceeds. It exists so the backend can persist an agent's output
+        the moment that agent finishes rather than at the end of the pipeline: an
+        investigation that takes a minute should not be invisible for a minute,
+        and a run that dies mid-pipeline should leave the work already done behind
+        it (invariant #6). A raising callback must not lose the run, so failures
+        are recorded and the pipeline continues.
         """
         state = new_state(
             investigation_id=investigation_id,
@@ -99,14 +111,49 @@ class InvestigationGraphService:
             evidence=evidence,
             assets=assets,
         )
-        self._graph.invoke(state, self._config(investigation_id))
+        self._run(state, self._config(investigation_id), on_node)
         return self._result(investigation_id)
+
+    def _run(
+        self,
+        payload: Any,
+        config: RunnableConfig,
+        on_node: Callable[[str, dict[str, Any]], None] | None,
+    ) -> None:
+        """Drive the graph to its next stop, reporting each node as it completes.
+
+        Streaming updates rather than invoking is what makes per-node reporting
+        possible; consuming the stream to exhaustion is equivalent to invoking it.
+        """
+        for chunk in self._graph.stream(payload, config, stream_mode="updates"):
+            if on_node is None or not isinstance(chunk, Mapping):
+                continue
+            for node, update in chunk.items():
+                # LangGraph reports a pause as ``__interrupt__``; it is a control
+                # signal, not a node that produced state.
+                if str(node).startswith("__") or not isinstance(update, Mapping):
+                    continue
+                self._report_node(str(node), dict(update), on_node)
+
+    @staticmethod
+    def _report_node(
+        node: str,
+        update: dict[str, Any],
+        on_node: Callable[[str, dict[str, Any]], None],
+    ) -> None:
+        try:
+            on_node(node, update)
+        except Exception as exc:
+            # A reporting failure must not lose the run: the remaining nodes still
+            # have work to do, and their output is worth more than this callback.
+            _logger.error("graph_node_report_failed", node=node, error=str(exc), exc_info=True)
 
     def resume(
         self,
         *,
         investigation_id: str,
         decision: Mapping[str, Any] | str,
+        on_node: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> GraphRunResult:
         """Resume a paused investigation with a recorded human decision."""
         from langgraph.types import Command
@@ -116,7 +163,7 @@ class InvestigationGraphService:
         if not snapshot.next:
             raise InvalidResumeError("investigation is not awaiting a human decision")
         normalized = self._coerce_decision(decision)
-        self._graph.invoke(Command(resume=normalized), config)
+        self._run(Command(resume=normalized), config, on_node)
         return self._result(investigation_id)
 
     def get_state(self, investigation_id: str) -> GraphRunResult:
