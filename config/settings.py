@@ -378,10 +378,47 @@ class Settings(BaseSettings):
         description="Maximum recommendations per plan, so a noisy investigation stays actionable.",
     )
 
+    # --- Analyst dashboard (Sprint 12) --------------------------------------
+    # The SPA is served from its own origin, so the API has to name the origins
+    # it will accept credentialed browser requests from. The default is the local
+    # Vite dev server; every other environment supplies its own list. A wildcard
+    # is deliberately impossible here: the browser refuses `*` with credentials,
+    # and an API that answers any origin is one an attacker's page can read.
+    cors_allowed_origins: str = Field(
+        default="http://localhost:5173",
+        description="Comma-separated browser origins permitted to call the API.",
+    )
+    investigation_page_size: int = Field(
+        default=25, ge=1, le=200, description="Default investigations returned per page."
+    )
+    investigation_page_size_max: int = Field(
+        default=100, ge=1, le=500, description="Upper bound a client may request per page."
+    )
+    stream_poll_seconds: float = Field(
+        default=1.0,
+        gt=0,
+        description="How often the investigation stream re-reads authoritative state.",
+    )
+    stream_heartbeat_seconds: float = Field(
+        default=15.0,
+        gt=0,
+        description="Idle interval after which the stream emits a keep-alive comment.",
+    )
+    stream_max_seconds: float = Field(
+        default=1800.0,
+        gt=0,
+        description="Maximum lifetime of one stream connection before the client reconnects.",
+    )
+
     @property
     def is_production(self) -> bool:
         """Whether the process is running in the production environment."""
         return self.environment is Environment.PRODUCTION
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """The configured browser origins, parsed and emptied of blanks."""
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
     @property
     def effective_oidc_audience(self) -> str:
@@ -395,6 +432,15 @@ class Settings(BaseSettings):
             raise ValueError("SOC_DEBUG must be false in the production environment.")
         if self.is_production and self.jwt_secret.get_secret_value() == _INSECURE_JWT_SECRET:
             raise ValueError("SOC_JWT_SECRET must be set to a strong value in production.")
+        if "*" in self.cors_origins:
+            raise ValueError(
+                "SOC_CORS_ALLOWED_ORIGINS must name explicit origins; "
+                "'*' would let any page read authenticated API responses."
+            )
+        if self.investigation_page_size > self.investigation_page_size_max:
+            raise ValueError(
+                "SOC_INVESTIGATION_PAGE_SIZE must not exceed SOC_INVESTIGATION_PAGE_SIZE_MAX."
+            )
         return self
 
 
