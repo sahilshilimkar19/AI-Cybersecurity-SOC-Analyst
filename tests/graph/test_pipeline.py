@@ -34,11 +34,12 @@ def test_node_history_is_ordered_and_sequenced(service: InvestigationGraphServic
         "log_analysis",
         "threat_detection",
         "report",
+        "remediation",
         "triage",
         "human_gate",
         "close",
     ]
-    assert [t["sequence"] for t in result.node_history] == [0, 1, 2, 3, 4, 5, 6]
+    assert [t["sequence"] for t in result.node_history] == [0, 1, 2, 3, 4, 5, 6, 7]
     # The gate transition is owned by human review and records the decision.
     gate = next(t for t in result.node_history if t["node"] == "human_gate")
     assert gate["owner"] == "human-review"

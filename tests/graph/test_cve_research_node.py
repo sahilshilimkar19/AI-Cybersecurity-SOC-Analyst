@@ -103,7 +103,14 @@ def test_the_benign_path_still_reaches_the_human_gate(
     nodes = [t["node"] for t in result.node_history]
 
     assert "cve_research" not in nodes
-    assert nodes == ["ingest_seed", "log_analysis", "threat_detection", "report", "triage"]
+    assert nodes == [
+        "ingest_seed",
+        "log_analysis",
+        "threat_detection",
+        "report",
+        "remediation",
+        "triage",
+    ]
     assert result.awaiting_human is True
     assert result.status == InvestigationStatus.AWAITING_APPROVAL.value
 
@@ -136,6 +143,7 @@ def test_the_node_runs_between_threat_detection_and_triage(
         "threat_detection",
         "cve_research",
         "report",
+        "remediation",
         "triage",
     ]
 
@@ -192,6 +200,7 @@ def test_the_node_writes_only_its_own_agent_record(
         "threat_detector",
         "cve_research",
         "incident_reporter",
+        "patch_recommender",
     }
     record = agents["cve_research"]
     assert record["last_output"]["prompt_version"] == "1.0.0"
@@ -304,6 +313,7 @@ def test_adding_a_third_agent_created_no_path_around_the_gate(
         "threat_detection",
         "cve_research",
         "report",
+        "remediation",
         "triage",
         "human_gate",
         "close",

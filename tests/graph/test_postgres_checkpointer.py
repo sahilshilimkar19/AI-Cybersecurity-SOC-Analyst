@@ -72,6 +72,7 @@ def test_paused_investigation_survives_a_worker_restart(
         # No evidence means a benign verdict, which skips CVE research but still
         # produces a report.
         "report",
+        "remediation",
         "triage",
         "human_gate",
         "close",

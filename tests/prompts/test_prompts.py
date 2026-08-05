@@ -11,6 +11,7 @@ from prompts.assembly import (
     CVE_RESEARCH_PROMPT,
     INCIDENT_REPORTER_PROMPT,
     LOG_ANALYZER_PROMPT,
+    PATCH_RECOMMENDER_PROMPT,
     PROMPT_MANIFEST,
     THREAT_DETECTOR_PROMPT,
     assemble_prompt,
@@ -165,12 +166,47 @@ def test_incident_reporter_prompt_is_bound_to_its_output_contract() -> None:
     assert "IncidentReport" in INCIDENT_REPORTER_PROMPT.output_contract
 
 
+def test_patch_recommender_prompt_forbids_assuming_execution() -> None:
+    """The rule the whole sprint turns on."""
+    task = PATCH_RECOMMENDER_PROMPT.task.lower()
+    assert "never assume execution" in task
+    assert "write steps for a person" in task
+
+
+def test_patch_recommender_prompt_forbids_automated_destructive_actions() -> None:
+    task = PATCH_RECOMMENDER_PROMPT.task.lower()
+    assert "never recommend an automated destructive action" in task
+    assert "on its own" in task
+
+
+def test_patch_recommender_prompt_requires_justification_and_a_source() -> None:
+    task = PATCH_RECOMMENDER_PROMPT.task.lower()
+    assert "justify and cite every recommendation" in task
+    assert "including what it will break" in task
+
+
+def test_patch_recommender_prompt_forbids_inventing_specifics() -> None:
+    task = PATCH_RECOMMENDER_PROMPT.task.lower()
+    assert "never invent a version number" in task
+    assert "label it as general" in task
+
+
+def test_patch_recommender_prompt_prioritizes_by_environment_not_severity() -> None:
+    task = PATCH_RECOMMENDER_PROMPT.task.lower()
+    assert "not by severity in the abstract" in task
+
+
+def test_patch_recommender_prompt_is_bound_to_its_output_contract() -> None:
+    assert "RemediationPlan" in PATCH_RECOMMENDER_PROMPT.output_contract
+
+
 def test_every_shipped_prompt_is_pinned_in_the_manifest() -> None:
     assert PROMPT_MANIFEST["preamble"] == PREAMBLE_VERSION
     assert PROMPT_MANIFEST[LOG_ANALYZER_PROMPT.name] == LOG_ANALYZER_PROMPT.version
     assert PROMPT_MANIFEST[THREAT_DETECTOR_PROMPT.name] == THREAT_DETECTOR_PROMPT.version
     assert PROMPT_MANIFEST[CVE_RESEARCH_PROMPT.name] == CVE_RESEARCH_PROMPT.version
     assert PROMPT_MANIFEST[INCIDENT_REPORTER_PROMPT.name] == INCIDENT_REPORTER_PROMPT.version
+    assert PROMPT_MANIFEST[PATCH_RECOMMENDER_PROMPT.name] == PATCH_RECOMMENDER_PROMPT.version
 
 
 def test_every_agent_prompt_inherits_the_shared_preamble() -> None:
@@ -179,13 +215,19 @@ def test_every_agent_prompt_inherits_the_shared_preamble() -> None:
         THREAT_DETECTOR_PROMPT.name,
         CVE_RESEARCH_PROMPT.name,
         INCIDENT_REPORTER_PROMPT.name,
+        PATCH_RECOMMENDER_PROMPT.name,
     ):
         assert SHARED_PREAMBLE in assemble_prompt(name)
 
 
 def test_every_agent_prompt_restates_that_it_only_recommends() -> None:
     """Invariant #2 must survive in each prompt, not only in the preamble."""
-    for asset in (THREAT_DETECTOR_PROMPT, CVE_RESEARCH_PROMPT, INCIDENT_REPORTER_PROMPT):
+    for asset in (
+        THREAT_DETECTOR_PROMPT,
+        CVE_RESEARCH_PROMPT,
+        INCIDENT_REPORTER_PROMPT,
+        PATCH_RECOMMENDER_PROMPT,
+    ):
         assert "never" in asset.task.lower()
 
 

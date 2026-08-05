@@ -66,6 +66,7 @@ def test_the_node_runs_on_the_threat_path(service: InvestigationGraphService) ->
         "threat_detection",
         "cve_research",
         "report",
+        "remediation",
         "triage",
     ]
 
@@ -198,6 +199,7 @@ def test_adding_a_fourth_agent_created_no_path_around_the_gate(
         "threat_detection",
         "cve_research",
         "report",
+        "remediation",
         "triage",
         "human_gate",
         "close",

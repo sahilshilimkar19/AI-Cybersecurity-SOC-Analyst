@@ -81,6 +81,7 @@ def test_the_node_runs_between_log_analysis_and_triage(
         # A non-benign verdict routes through CVE research before the report.
         "cve_research",
         "report",
+        "remediation",
         "triage",
     ]
 
@@ -187,6 +188,7 @@ def test_adding_a_second_agent_created_no_path_around_the_gate(
         "threat_detection",
         "cve_research",
         "report",
+        "remediation",
         "triage",
         "human_gate",
         "close",
