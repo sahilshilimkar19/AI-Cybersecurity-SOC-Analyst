@@ -20,6 +20,7 @@ degrades exactly one capability (invariant #6).
 | `resilience.py` | Shared TTL cache, token-bucket rate limiter, circuit breaker |
 | `threat_intel.py` | IoC reputation: unavailable-by-default, in-memory, VirusTotal |
 | `nvd.py` | NVD CVE API v2: records, CVSS, CWEs, affected version ranges |
+| `advisories.py` | GitHub Security Advisories: fixed versions for confirmed CVEs |
 
 ## Rules
 Read-only by default for data sources (no enforcement authority); validate/normalize all

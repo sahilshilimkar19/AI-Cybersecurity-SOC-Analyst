@@ -335,6 +335,49 @@ class Settings(BaseSettings):
         default=10, ge=1, description="Maximum CVE records considered per product searched."
     )
 
+    # --- Remediation advisories (Sprint 11) ---------------------------------
+    # Fixed-version lookup. Without it a remediation plan still recommends
+    # patching but cannot name the target release, which is the difference
+    # between actionable and merely correct.
+    advisory_source: Literal["none", "github"] = Field(
+        default="none", description="Security advisory feed used to resolve fixed versions."
+    )
+    github_advisories_url: str = Field(
+        default="https://api.github.com/advisories",
+        description="GitHub Security Advisories API endpoint.",
+    )
+    github_token: SecretStr = Field(
+        default=SecretStr(""),
+        description="GitHub token (optional; raises the advisory API rate limit).",
+    )
+    advisory_timeout_seconds: float = Field(
+        default=10.0, gt=0, description="Per-request timeout for advisory lookups."
+    )
+    advisory_cache_ttl_seconds: int = Field(
+        default=21600,
+        ge=0,
+        description="TTL for cached advisories (0 disables caching).",
+    )
+    advisory_rate_limit_per_window: int = Field(
+        default=60,
+        ge=1,
+        description="Advisory requests per window (GitHub allows 60/hour unauthenticated).",
+    )
+    advisory_rate_limit_window_seconds: float = Field(
+        default=3600.0, gt=0, description="Length of the advisory rate-limit window (seconds)."
+    )
+    advisory_breaker_failure_threshold: int = Field(
+        default=3, ge=1, description="Consecutive failures before the advisory circuit opens."
+    )
+    advisory_breaker_reset_seconds: float = Field(
+        default=60.0, gt=0, description="How long the advisory circuit stays open before probing."
+    )
+    remediation_max_recommendations: int = Field(
+        default=20,
+        ge=1,
+        description="Maximum recommendations per plan, so a noisy investigation stays actionable.",
+    )
+
     @property
     def is_production(self) -> bool:
         """Whether the process is running in the production environment."""
