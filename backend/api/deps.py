@@ -22,6 +22,7 @@ from backend.auth.sessions import SessionService, SessionStore
 from backend.auth.tokens import TokenService
 from backend.db.session import get_session_factory
 from config.settings import Settings
+from graph.runtime import InvestigationGraphService, build_graph_runtime
 
 
 def get_settings_dep(request: Request) -> Settings:
@@ -41,6 +42,35 @@ def get_db() -> Iterator[Session]:
         raise
     finally:
         session.close()
+
+
+def get_db_session_factory(request: Request) -> Callable[[], Session]:
+    """Return a factory for sessions outside the request scope.
+
+    Background runs and the event stream both outlive the request that started
+    them, so they cannot borrow the request-scoped session — it is closed the
+    moment the response is returned. They get a factory and own their own
+    transactions instead.
+    """
+    factory: Callable[[], Session] | None = getattr(request.app.state, "session_factory", None)
+    if factory is None:
+        factory = get_session_factory()
+        request.app.state.session_factory = factory
+    return factory
+
+
+def get_graph_runtime(request: Request) -> InvestigationGraphService:
+    """Return the process's graph runtime, composing it on first use.
+
+    Cached on ``app.state`` because the runtime owns the checkpointer, and a new
+    one per request would give each request its own in-memory checkpoint store —
+    an investigation would then be unresumable by the very next call.
+    """
+    runtime: InvestigationGraphService | None = getattr(request.app.state, "graph_runtime", None)
+    if runtime is None:
+        runtime = build_graph_runtime(request.app.state.settings)
+        request.app.state.graph_runtime = runtime
+    return runtime
 
 
 def get_session_store(request: Request) -> SessionStore:
