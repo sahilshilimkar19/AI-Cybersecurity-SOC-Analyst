@@ -16,7 +16,7 @@ Two decisions shape what lands in the table:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from backend.db.orm.reporting import Report
 from backend.db.repositories.reporting import ReportRepository
@@ -24,6 +24,7 @@ from config.logging import get_logger
 from models.enums import ReportStatus
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
     from uuid import UUID
 
     from sqlalchemy.orm import Session
@@ -47,19 +48,52 @@ def to_report(investigation_id: UUID, report: IncidentReport, *, version: int = 
 
 def record_report(session: Session, investigation_id: UUID, report: IncidentReport) -> Report:
     """Persist a report as the next version for its investigation."""
-    repository = ReportRepository(session)
-    version = repository.latest_version(investigation_id) + 1
-    row = repository.add(to_report(investigation_id, report, version=version))
-
+    row = record_report_content(
+        session,
+        investigation_id,
+        executive_summary=report.executive_summary,
+        technical_body=report.technical_body,
+        citations=[citation.model_dump(mode="json") for citation in report.citations],
+    )
     _logger.info(
         "incident_report_recorded",
         investigation_id=str(investigation_id),
-        version=version,
+        version=row.version,
         findings=len(report.findings),
         caveats=len(report.caveats),
         complete=report.is_complete,
     )
     return row
+
+
+def record_report_content(
+    session: Session,
+    investigation_id: UUID,
+    *,
+    executive_summary: str,
+    technical_body: str,
+    citations: Sequence[Mapping[str, Any]],
+) -> Report:
+    """Persist an already-rendered report as the next version.
+
+    The orchestrator reads the report out of graph state, where it exists as the
+    rendered document plus its references rather than as an ``IncidentReport``.
+    Both callers land here so there is exactly one place that decides a stored
+    report starts as a draft — a second write path is how a rule like that gets
+    quietly forgotten.
+    """
+    repository = ReportRepository(session)
+    version = repository.latest_version(investigation_id) + 1
+    return repository.add(
+        Report(
+            investigation_id=investigation_id,
+            executive_summary=executive_summary,
+            technical_body=technical_body,
+            citations=[dict(citation) for citation in citations],
+            status=ReportStatus.DRAFT,
+            version=version,
+        )
+    )
 
 
 def finalize_report(
