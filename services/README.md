@@ -6,6 +6,11 @@ severity scoring, risk prioritization, and correlation helpers (EDS §3.8).
 Distinct from `backend/services/` (application/use-case services): this layer holds pure
 domain rules with no dependency on transport or a specific agent.
 
+## Shipped
+| Module | Covers |
+|---|---|
+| `risk.py` | Risk scoring and remediation priority — one definition shared by the agent and the analyst queue |
+
 ## Rules
 Deterministic and side-effect-free where possible; inputs validated against domain schemas.
 
