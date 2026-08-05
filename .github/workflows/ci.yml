@@ -77,3 +77,45 @@ jobs:
 
       - name: Test (pytest)
         run: pytest
+
+  frontend:
+    name: Frontend — Lint · Type-check · Test · Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `npm ci` rather than `npm install`: it installs exactly the pinned tree
+      # and fails if the lockfile and manifest disagree, so a dependency cannot
+      # drift into a build without appearing in a reviewed diff.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Type check (tsc)
+        run: npm run typecheck
+
+      - name: Test (vitest)
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # A known-vulnerable dependency in a security console is not acceptable at
+      # any severity that has a fix. This gate is what forced react-router and
+      # vite forward during the Frontend sprint rather than after a release.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=moderate
