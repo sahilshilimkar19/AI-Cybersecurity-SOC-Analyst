@@ -57,4 +57,11 @@ class Investigation(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     title: Mapped[str | None] = mapped_column(String(512), nullable=True)
     summary: Mapped[str | None] = mapped_column(String(), nullable=True)
     config_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    # Which agent stages have run, recorded by the backend as each one finishes.
+    # The graph's own transition log lives in its checkpoint, which is keyed by
+    # thread and may be in-process; this is the backend's durable record of the
+    # same run, and it is what the dashboard reports progress from. Deriving
+    # progress from artifacts instead would misreport the honest empty results —
+    # research that found no CVEs looks identical to research that never ran.
+    pipeline: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
