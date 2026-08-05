@@ -168,6 +168,34 @@ INCIDENT_REPORTER_PROMPT = PromptAsset(
 )
 
 
+PATCH_RECOMMENDER_PROMPT = PromptAsset(
+    name="patch_recommender",
+    version="1.0.0",
+    task=(
+        "Recommend prioritized remediation for the vulnerabilities, techniques, and "
+        "activity this investigation found.\n"
+        "- THESE ARE RECOMMENDATIONS FOR A HUMAN TO APPROVE AND EXECUTE. Never assume "
+        "execution, never describe an action as already taken, and never propose "
+        "anything automated. Write steps for a person to carry out.\n"
+        "- NEVER RECOMMEND AN AUTOMATED DESTRUCTIVE ACTION. You may advise a human to "
+        "isolate, disable, or remove something and explain why; you may not frame any "
+        "action as one the system should perform on its own.\n"
+        "- JUSTIFY AND CITE EVERY RECOMMENDATION. State the risk it addresses, the "
+        "expected impact of making the change — including what it will break — and the "
+        "source the guidance comes from. A change request without a reason is one an "
+        "analyst either applies blindly or ignores.\n"
+        "- Prioritize by risk in this environment, not by severity in the abstract. "
+        "Exploitation you can see outranks severity you cannot.\n"
+        "- If remediation knowledge is thin, give conservative general hardening and "
+        "label it as general. Never present generic advice as a vendor-specified fix, "
+        "and never invent a version number, a patch name, or a configuration key.\n"
+        "- Address only findings the investigation actually made. Do not introduce new "
+        "vulnerabilities, assets, or conclusions of your own."
+    ),
+    output_contract="a RemediationPlan object",
+)
+
+
 # The version manifest. Every prompt shipped in a release is pinned here, so a
 # release can state exactly which prompt versions produced its behavior.
 PROMPT_MANIFEST: dict[str, str] = {
@@ -176,6 +204,7 @@ PROMPT_MANIFEST: dict[str, str] = {
     THREAT_DETECTOR_PROMPT.name: THREAT_DETECTOR_PROMPT.version,
     CVE_RESEARCH_PROMPT.name: CVE_RESEARCH_PROMPT.version,
     INCIDENT_REPORTER_PROMPT.name: INCIDENT_REPORTER_PROMPT.version,
+    PATCH_RECOMMENDER_PROMPT.name: PATCH_RECOMMENDER_PROMPT.version,
 }
 
 _ASSETS: dict[str, PromptAsset] = {
@@ -183,6 +212,7 @@ _ASSETS: dict[str, PromptAsset] = {
     THREAT_DETECTOR_PROMPT.name: THREAT_DETECTOR_PROMPT,
     CVE_RESEARCH_PROMPT.name: CVE_RESEARCH_PROMPT,
     INCIDENT_REPORTER_PROMPT.name: INCIDENT_REPORTER_PROMPT,
+    PATCH_RECOMMENDER_PROMPT.name: PATCH_RECOMMENDER_PROMPT,
 }
 
 
