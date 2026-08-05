@@ -9,21 +9,24 @@ Pipeline:
     START -> ingest_seed -> log_analysis -> threat_detection --benign-----------> report
                                                     \\--suspicious/malicious--> cve_research --^
                                                                                   |
-                                     triage -> human_gate --approve--> close -> END
-                                       ^           \\--redirect--/
+                    remediation -> triage -> human_gate --approve--> close -> END
+                                              ^          \\--redirect--/
 
 ``log_analysis`` establishes the evidence, ``threat_detection`` assesses it,
 ``cve_research`` runs only when that assessment found something — the verdict
-branch from SAD §5 — and ``report`` synthesizes whatever exists into the document
-the analyst approves. ``triage`` remains the attachment point for the agents that
-follow.
+branch from SAD §5 — ``report`` synthesizes whatever exists into the document the
+analyst reads, and ``remediation`` proposes the work that follows from it. The
+agent pipeline is complete; ``triage`` hands the whole package to a human.
 
 Three properties are load-bearing. The branch skips *work*, never the *gate*:
-both arms converge on the report, then triage, then the human interrupt, because
-closing an investigation is itself a consequential outcome (invariant #1). The
-report is on both arms, so even a benign investigation leaves a record behind.
-And sequencing lives in the edges rather than inside the nodes (EDS §5), so no
-node decides what runs after it.
+both arms converge on the report, the plan, triage, and then the human interrupt,
+because closing an investigation is itself a consequential outcome (invariant #1).
+The report and the plan run on both arms, so even a benign investigation leaves a
+record and an explicit "nothing to remediate" behind. And sequencing lives in the
+edges rather than inside the nodes (EDS §5), so no node decides what runs after it.
+
+Note what is absent and must stay absent: there is no edge from ``remediation`` to
+anything that acts. The plan's only route onward is through the human gate.
 """
 
 from __future__ import annotations
@@ -38,6 +41,7 @@ from graph.nodes import (
     HUMAN_GATE,
     INGEST_SEED,
     LOG_ANALYSIS,
+    REMEDIATION,
     REPORT,
     THREAT_DETECTION,
     TRIAGE,
@@ -77,7 +81,8 @@ def build_investigation_graph(
         {CVE_RESEARCH: CVE_RESEARCH, REPORT: REPORT},
     )
     builder.add_edge(CVE_RESEARCH, REPORT)
-    builder.add_edge(REPORT, TRIAGE)
+    builder.add_edge(REPORT, REMEDIATION)
+    builder.add_edge(REMEDIATION, TRIAGE)
     builder.add_edge(TRIAGE, HUMAN_GATE)
     builder.add_conditional_edges(
         HUMAN_GATE,

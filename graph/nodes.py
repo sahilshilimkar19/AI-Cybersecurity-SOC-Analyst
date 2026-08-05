@@ -26,6 +26,7 @@ LOG_ANALYSIS = "log_analysis"
 THREAT_DETECTION = "threat_detection"
 CVE_RESEARCH = "cve_research"
 REPORT = "report"
+REMEDIATION = "remediation"
 TRIAGE = "triage"
 HUMAN_GATE = "human_gate"
 CLOSE = "close"
@@ -38,6 +39,7 @@ _OWNER_LOG_ANALYZER = "log-analyzer"
 _OWNER_THREAT_DETECTOR = "threat-detector"
 _OWNER_CVE_RESEARCH = "cve-research"
 _OWNER_INCIDENT_REPORTER = "incident-reporter"
+_OWNER_PATCH_RECOMMENDER = "patch-recommender"
 
 
 def _utcnow() -> str:
@@ -354,6 +356,69 @@ def report(state: GraphState) -> dict[str, Any]:
     }
 
 
+def remediation(state: GraphState) -> dict[str, Any]:
+    """Turn the findings into a prioritized plan for a human to approve.
+
+    Runs on every path, including benign. Unlike the CVE branch — which skips
+    external API work nobody asked for — there is nothing to save here: an
+    investigation with no findings makes no advisory lookups, and produces a plan
+    that says explicitly there is nothing to remediate. "We looked and there is
+    nothing to fix" is a statement worth recording.
+
+    Nothing this node writes can be executed. The plan carries instructions for a
+    person, and every recommendation is pending human approval by construction
+    (invariants #1 and #2).
+    """
+    from agents.patch_recommender import AGENT_NAME, PatchRecommender
+    from models.remediation import RemediationPlanRequest
+
+    findings = state["investigation"]
+    snapshot = state.get("config_snapshot", {})
+
+    outcome = PatchRecommender().recommend(
+        RemediationPlanRequest(
+            investigation_id=state["investigation_id"],
+            threat_assessment=findings.get("threat_assessment"),
+            vulnerability_dossier=findings.get("vulnerability_dossier"),
+            assets=list(state["shared"].get("assets", [])),
+            critical_assets=list(snapshot.get("critical_assets", [])),
+        )
+    )
+    plan = outcome.output
+
+    return {
+        "current_node": REMEDIATION,
+        "updated_at": _utcnow(),
+        "investigation": {"remediation_plan": plan.model_dump(mode="json")},
+        "agents": {
+            AGENT_NAME: {
+                "agent_name": AGENT_NAME,
+                "last_output": {
+                    "recommendations": len(plan.recommendations),
+                    "highest_priority": (
+                        plan.highest_priority.value if plan.highest_priority else None
+                    ),
+                    "overall_risk": plan.overall_risk.score if plan.overall_risk else 0.0,
+                    "knowledge_limited": plan.knowledge_limited,
+                    "requires_human_approval": plan.requires_human_approval,
+                    "prompt_version": outcome.prompt_version,
+                },
+                "confidence": outcome.confidence,
+                "retry_count": 0,
+                "tool_calls": outcome.tool_calls,
+            }
+        },
+        "node_history": [
+            _transition(
+                REMEDIATION,
+                _OWNER_PATCH_RECOMMENDER,
+                "completed",
+                f"{len(plan.recommendations)} recommendation(s), all pending human approval",
+            )
+        ],
+    }
+
+
 def route_after_threat(state: GraphState) -> str:
     """Branch on the verdict (SAD §5 conditional routing).
 
@@ -393,6 +458,9 @@ def triage(state: GraphState) -> dict[str, Any]:
         f", {len(dossier.get('cves', []))} confirmed CVE(s)" if dossier else ", no CVE research"
     )
     detail += ", report drafted" if state["report"].get("technical_report") else ", no report"
+
+    plan = findings.get("remediation_plan")
+    detail += f", {len(plan.get('recommendations', []))} recommendation(s)" if plan else ""
     detail += ")"
 
     return {
@@ -461,6 +529,31 @@ def _gate_summary(state: GraphState) -> dict[str, Any]:
         # the executive summary it is asking them to sign off.
         "executive_summary": state["report"].get("executive_summary"),
         "report_status": state["report"].get("report_status"),
+        **_remediation_summary(state),
+    }
+
+
+def _remediation_summary(state: GraphState) -> dict[str, Any]:
+    """What the analyst is being asked to authorize, and that it is unexecuted."""
+    plan = state["investigation"].get("remediation_plan")
+    if not plan:
+        return {"recommendation_count": 0, "recommendations_pending_approval": False}
+
+    recommendations = plan.get("recommendations", [])
+    return {
+        "recommendation_count": len(recommendations),
+        "highest_recommendation_priority": next(
+            (
+                priority
+                for priority in ("urgent", "high", "medium", "low")
+                if any(item.get("priority") == priority for item in recommendations)
+            ),
+            None,
+        ),
+        "overall_risk": (plan.get("overall_risk") or {}).get("score"),
+        # Stated at the gate as well as on every item: the human is authorizing
+        # work that has not happened (invariant #2).
+        "recommendations_pending_approval": bool(recommendations),
     }
 
 
