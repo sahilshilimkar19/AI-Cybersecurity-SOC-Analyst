@@ -1,0 +1,675 @@
+/*
+ * Console styling.
+ *
+ * Severity, verdict, and approval state are each given a colour *and* a word.
+ * Colour alone fails for the ~8% of analysts with a colour-vision deficiency,
+ * and on a screen where "critical" versus "medium" changes what someone does at
+ * 3am, that is a correctness problem rather than a polish one.
+ */
+
+:root {
+  --bg: #0f1115;
+  --surface: #171a21;
+  --surface-2: #1f232c;
+  --border: #2b303b;
+  --text: #e6e8ec;
+  --text-dim: #9aa3b2;
+  --accent: #4d9de0;
+
+  --info: #6b7280;
+  --low: #3b82f6;
+  --medium: #eab308;
+  --high: #f97316;
+  --critical: #ef4444;
+  --good: #22c55e;
+  --warning: #eab308;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+a {
+  color: var(--accent);
+}
+
+button {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+input,
+textarea,
+select {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font: inherit;
+  width: 100%;
+}
+
+/* --- Shell ------------------------------------------------------------- */
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.shell-header .brand {
+  font-weight: 600;
+}
+
+.shell-header nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.shell-header nav a {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+
+.shell-header nav a.active {
+  color: var(--text);
+  border-bottom: 2px solid var(--accent);
+}
+
+.shell-header .identity {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 0.9em;
+}
+
+.shell-main {
+  flex: 1;
+  padding: 1.5rem;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.shell-footer {
+  padding: 0.75rem 1.5rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.85em;
+}
+
+/* --- Badges ------------------------------------------------------------ */
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.8em;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+.severity-info,
+.verdict-benign {
+  border-color: var(--info);
+  color: var(--info);
+}
+.severity-low {
+  border-color: var(--low);
+  color: var(--low);
+}
+.severity-medium,
+.verdict-suspicious {
+  border-color: var(--medium);
+  color: var(--medium);
+}
+.severity-high,
+.priority-high {
+  border-color: var(--high);
+  color: var(--high);
+}
+.severity-critical,
+.priority-urgent,
+.verdict-malicious {
+  border-color: var(--critical);
+  color: var(--critical);
+}
+.badge-unset,
+.enrichment-unchecked {
+  border-color: var(--text-dim);
+  color: var(--text-dim);
+  font-style: italic;
+}
+.badge-warning,
+.enrichment-unavailable {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+.approval-pending {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+.approval-approved {
+  border-color: var(--good);
+  color: var(--good);
+}
+.approval-rejected {
+  border-color: var(--critical);
+  color: var(--critical);
+}
+
+/* --- States ------------------------------------------------------------ */
+
+.state {
+  padding: 0.6rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+}
+
+.state-error {
+  border-color: var(--critical);
+  color: var(--critical);
+}
+
+.state-warning {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.stream-status {
+  margin: 0.5rem 0;
+  font-size: 0.9em;
+}
+
+.stream-reconnecting,
+.stream-failed {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.refused {
+  color: var(--warning);
+  font-style: italic;
+}
+
+/* --- Confidence -------------------------------------------------------- */
+
+.confidence {
+  position: relative;
+  display: inline-block;
+  font-size: 0.9em;
+  padding-bottom: 4px;
+}
+
+.confidence-word {
+  font-weight: 600;
+}
+
+.confidence-low .confidence-word {
+  color: var(--warning);
+}
+.confidence-moderate .confidence-word {
+  color: var(--low);
+}
+.confidence-high .confidence-word {
+  color: var(--good);
+}
+.confidence-unknown {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.confidence-bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+/* --- Tables ------------------------------------------------------------ */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+caption {
+  text-align: left;
+  color: var(--text-dim);
+  padding: 0.5rem 0;
+  font-size: 0.9em;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.55rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th {
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+td.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ioc-value {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  word-break: break-all;
+}
+
+/* --- Dashboard --------------------------------------------------------- */
+
+.posture {
+  display: flex;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.posture-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  min-width: 180px;
+}
+
+.posture-attention {
+  border-color: var(--warning);
+}
+
+.posture-value {
+  display: block;
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+.posture-label {
+  color: var(--text-dim);
+  font-size: 0.9em;
+}
+
+.filters {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.filter-mine {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: auto;
+  color: var(--text-dim);
+}
+
+.filter-mine input {
+  width: auto;
+}
+
+/* --- Pipeline ---------------------------------------------------------- */
+
+.pipeline {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pipeline-stage {
+  flex: 1 1 180px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.stage-complete {
+  border-left-color: var(--good);
+}
+.stage-skipped {
+  border-left-color: var(--text-dim);
+}
+.stage-pending {
+  border-left-color: var(--warning);
+}
+
+.stage-name {
+  display: block;
+  font-weight: 600;
+}
+
+.stage-state,
+.stage-detail {
+  display: block;
+  color: var(--text-dim);
+  font-size: 0.85em;
+}
+
+/* --- Approval ---------------------------------------------------------- */
+
+.approval-panel {
+  background: var(--surface);
+  border: 1px solid var(--warning);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+}
+
+.approval-closed,
+.approval-readonly {
+  border-color: var(--border);
+}
+
+.approval-context {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.approval-gaps {
+  border-left: 3px solid var(--warning);
+  padding-left: 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.approval-form fieldset {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.decision-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.5rem;
+  align-items: baseline;
+  padding: 0.35rem 0;
+}
+
+.decision-option input {
+  width: auto;
+}
+
+.decision-label {
+  font-weight: 600;
+}
+
+.decision-help {
+  grid-column: 2;
+  color: var(--text-dim);
+  font-size: 0.9em;
+}
+
+.approval-field {
+  display: block;
+  margin: 0.75rem 0;
+}
+
+.approval-field > span {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--text-dim);
+  font-size: 0.9em;
+}
+
+.approval-error {
+  color: var(--critical);
+}
+
+.approval-note {
+  color: var(--text-dim);
+  font-size: 0.9em;
+  border-left: 3px solid var(--border);
+  padding-left: 0.75rem;
+}
+
+.approval-item {
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 0;
+}
+
+.item-kind {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  font-size: 0.75em;
+  margin-right: 0.5rem;
+}
+
+/* --- Documents and lists ----------------------------------------------- */
+
+.document {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.citations,
+.provenance,
+.recommendations,
+.techniques,
+.cves,
+.timeline,
+.capabilities,
+.pending-settings {
+  list-style: none;
+  padding: 0;
+}
+
+.citations-empty,
+.provenance-empty {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.provenance-entry {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  padding: 0.25rem 0;
+}
+
+.provenance dt {
+  color: var(--text-dim);
+}
+
+.provenance dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.recommendation,
+.cves li,
+.techniques li {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.recommendation.priority-urgent {
+  border-left-color: var(--critical);
+}
+.recommendation.priority-high {
+  border-left-color: var(--high);
+}
+.recommendation.priority-medium {
+  border-left-color: var(--medium);
+}
+.recommendation.priority-low {
+  border-left-color: var(--low);
+}
+
+.recommendation-meta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.recommendation-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.recommendation-decided {
+  color: var(--text-dim);
+  font-size: 0.9em;
+}
+
+.timeline-event {
+  border-bottom: 1px solid var(--border);
+  padding: 0.4rem 0;
+}
+
+.event-line {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.event-line time {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  min-width: 190px;
+}
+
+.event-type {
+  font-weight: 600;
+}
+
+.event-source,
+.event-actor,
+.event-notability {
+  color: var(--text-dim);
+  font-size: 0.9em;
+}
+
+.section-note {
+  color: var(--text-dim);
+  font-size: 0.9em;
+}
+
+.investigation-meta,
+.threat-headline,
+.report-header,
+.investigation-links {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0.5rem 0;
+}
+
+.capabilities li,
+.pending-settings li {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.capability-state {
+  display: inline-block;
+  min-width: 3rem;
+  font-weight: 600;
+}
+
+.capabilities .granted .capability-state {
+  color: var(--good);
+}
+
+.capabilities .denied .capability-state {
+  color: var(--text-dim);
+}
+
+.profile {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.profile div {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+}
+
+.profile dt {
+  color: var(--text-dim);
+}
+
+.profile dd {
+  margin: 0;
+}
+
+.page-signin {
+  max-width: 420px;
+  margin: 12vh auto;
+  text-align: center;
+}

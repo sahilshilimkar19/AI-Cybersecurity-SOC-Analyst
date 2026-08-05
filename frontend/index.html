@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      A restrictive CSP is the second line of defense behind React's escaping.
+      The console renders attacker-controlled log content, so `script-src 'self'`
+      means an injected string cannot become an executing script even if some
+      future component gets its escaping wrong. `connect-src` is relaxed to the
+      configured API origin at deploy time (see deploy/ in the Deployment sprint).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src *; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <title>SOC Analyst</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>This console requires JavaScript.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
