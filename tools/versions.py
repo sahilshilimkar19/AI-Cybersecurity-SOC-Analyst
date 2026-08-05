@@ -96,6 +96,9 @@ _GENERIC_TOKENS = frozenset(
 # A shared token shorter than this is too generic to carry a match on its own.
 _MIN_TOKEN_LENGTH = 3
 
+# Score for an exact name match, above any achievable token-overlap count.
+_EXACT_MATCH_SCORE = 100
+
 
 @dataclass(frozen=True, order=True)
 class Version:
@@ -193,11 +196,27 @@ def products_match(installed: str, affected: str) -> bool:
     Generic tokens are excluded so "Apache HTTP Server" and "Apache Tomcat" do
     not match on the vendor they share.
     """
+    return product_match_score(installed, affected) > 0
+
+
+def product_match_score(installed: str, affected: str) -> int:
+    """How *well* two product names match, not merely whether they do.
+
+    Generosity is right when deciding whether to look at a candidate at all, and
+    wrong when choosing between several candidates from the same family:
+    ``log4j-api`` matches both ``log4j-core`` and ``log4j-api``, and picking the
+    first would attach the wrong fixed version to the finding. Callers with a
+    choice should rank by this score; callers with a yes/no question can use
+    :func:`products_match`.
+
+    Higher is better. Exact equality outranks everything; otherwise the score is
+    the number of distinctive tokens the two names share.
+    """
     left, right = normalize_product(installed), normalize_product(affected)
     if not left or not right:
-        return False
+        return 0
     if left == right:
-        return True
+        return _EXACT_MATCH_SCORE
 
     shared = {
         token
@@ -205,12 +224,12 @@ def products_match(installed: str, affected: str) -> bool:
         if len(token) >= _MIN_TOKEN_LENGTH
     }
     if shared:
-        return True
+        return len(shared)
 
     # Fall back to containment for names that carry no separators at all.
     if min(len(left), len(right)) < 4:
-        return False
-    return left in right or right in left
+        return 0
+    return 1 if (left in right or right in left) else 0
 
 
 def _distinctive_tokens(name: str) -> set[str]:

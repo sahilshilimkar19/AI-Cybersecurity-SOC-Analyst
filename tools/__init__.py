@@ -47,6 +47,15 @@ from tools.parsers import (
     parse_record,
     parse_timestamp,
 )
+from tools.remediation import (
+    MITIGATIONS,
+    TEMPLATES,
+    RemediationTemplate,
+    for_technique,
+    for_weakness,
+    generic_guidance,
+    patch_guidance,
+)
 from tools.rendering import escape_cell, fence, render_executive_summary, render_technical_body
 from tools.reporting import (
     assemble_timeline,
@@ -68,13 +77,16 @@ from tools.versions import (
     in_vulnerable_range,
     normalize_product,
     parse_version,
+    product_match_score,
     products_match,
 )
 
 __all__ = [
     "DEFAULT_PARSERS",
     "DEFAULT_RULES",
+    "MITIGATIONS",
     "TECHNIQUES",
+    "TEMPLATES",
     "WEAKNESSES",
     "CefParser",
     "DetectionContext",
@@ -83,6 +95,7 @@ __all__ = [
     "KeyValueParser",
     "LogParser",
     "ParsedRecord",
+    "RemediationTemplate",
     "RuleMatch",
     "SyslogRfc3164Parser",
     "SyslogRfc5424Parser",
@@ -117,6 +130,9 @@ __all__ = [
     "extract_entities",
     "extract_iocs",
     "fence",
+    "for_technique",
+    "for_weakness",
+    "generic_guidance",
     "in_vulnerable_range",
     "interpret",
     "is_internal_address",
@@ -129,6 +145,8 @@ __all__ = [
     "parse_timestamp",
     "parse_vector",
     "parse_version",
+    "patch_guidance",
+    "product_match_score",
     "products_match",
     "reference_marks",
     "render_executive_summary",

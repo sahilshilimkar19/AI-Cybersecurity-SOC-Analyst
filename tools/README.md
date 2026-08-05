@@ -19,6 +19,7 @@ reasoning so they are independently unit-testable (EDS §3.7).
 | `cwe.py` | Pinned MITRE CWE catalogue with plain explanations |
 | `reporting.py` | Report timeline assembly, affected assets, citation compilation |
 | `rendering.py` | Markdown rendering with untrusted-content escaping |
+| `remediation.py` | Pinned remediation guidance, MITRE mitigations, patch templates |
 
 ## Rules
 - **Least privilege:** each agent may call only its allow-listed tools.
