@@ -86,3 +86,29 @@ def test_get_settings_is_cached() -> None:
     third = get_settings()
 
     assert third is not first
+
+
+# --- Dashboard settings (Sprint 12) -----------------------------------------
+
+
+def test_cors_origins_are_parsed_and_trimmed() -> None:
+    settings = Settings(cors_allowed_origins="https://soc.example.com , http://localhost:5173 ,")
+
+    assert settings.cors_origins == ["https://soc.example.com", "http://localhost:5173"]
+
+
+def test_a_wildcard_cors_origin_is_refused() -> None:
+    """An API that answers any origin is one an attacker's page can read."""
+    with pytest.raises(ValidationError):
+        Settings(cors_allowed_origins="*")
+
+
+def test_a_wildcard_among_real_origins_is_refused_too() -> None:
+    with pytest.raises(ValidationError):
+        Settings(cors_allowed_origins="https://soc.example.com,*")
+
+
+def test_a_default_page_size_above_its_own_ceiling_is_refused() -> None:
+    """Otherwise the ceiling is documentation rather than a bound."""
+    with pytest.raises(ValidationError):
+        Settings(investigation_page_size=200, investigation_page_size_max=50)
