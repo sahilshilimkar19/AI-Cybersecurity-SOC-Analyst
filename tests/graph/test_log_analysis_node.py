@@ -71,7 +71,7 @@ def test_the_pipeline_still_pauses_at_the_human_gate(
     assert approved.status == InvestigationStatus.CLOSED.value
     nodes = [t["node"] for t in approved.node_history]
     assert nodes[:3] == ["ingest_seed", "log_analysis", "threat_detection"]
-    assert nodes[-3:] == ["triage", "human_gate", "close"]
+    assert nodes[-4:] == ["triage", "human_gate", "notify", "close"]
 
 
 def test_an_investigation_with_no_evidence_still_completes(

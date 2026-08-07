@@ -18,7 +18,7 @@ from typing import Any, cast
 from langgraph.types import interrupt
 
 from graph.state import GraphState, NodeTransition
-from models.enums import DecisionType, InvestigationStatus, Verdict
+from models.enums import DecisionType, InvestigationStatus, TriagePriority, Verdict
 
 # Node identifiers. Kept here so routing and the registry share one source of truth.
 INGEST_SEED = "ingest_seed"
@@ -29,6 +29,7 @@ REPORT = "report"
 REMEDIATION = "remediation"
 TRIAGE = "triage"
 HUMAN_GATE = "human_gate"
+NOTIFY = "notify"
 CLOSE = "close"
 
 # Node ownership (SAD §5): system nodes belong to the graph runtime; the approval
@@ -557,6 +558,77 @@ def _remediation_summary(state: GraphState) -> dict[str, Any]:
     }
 
 
+def notify(state: GraphState) -> dict[str, Any]:
+    """Assemble the outbound alert an approved investigation warrants.
+
+    Reachable only from the human gate's *approve* arm (see
+    :func:`route_after_gate`), which is what makes "no notification before
+    approval" a property of the graph's shape rather than a rule the dispatcher
+    is trusted to remember (invariant #1).
+
+    This node **assembles**; it does not send. Delivery is a side effect on the
+    outside world, and side effects belong to the backend, which is the sole
+    boundary that writes anywhere — including into someone's inbox (invariant
+    #7). What lands in state is the alert the backend then dispatches, so a
+    replayed checkpoint reproduces the same message rather than re-sending it.
+    """
+    findings = state["investigation"]
+    assessment = findings.get("threat_assessment") or {}
+    severity = assessment.get("severity") or {}
+    plan = findings.get("remediation_plan") or {}
+
+    highlights: list[str] = []
+    hosts = [
+        str(asset.get("hostname"))
+        for asset in state["shared"].get("assets", [])
+        if asset.get("hostname")
+    ]
+    if hosts:
+        highlights.append(f"Affected hosts: {', '.join(hosts[:5])}")
+
+    dossier = findings.get("vulnerability_dossier") or {}
+    confirmed = [item["record"]["cve_id"] for item in dossier.get("cves", [])]
+    if confirmed:
+        highlights.append(f"Confirmed CVEs: {', '.join(confirmed[:5])}")
+
+    recommendations = plan.get("recommendations", [])
+    if recommendations:
+        # Stated in the alert itself, not only in the console: an on-call reader
+        # must not infer from "we alerted you" that anything has been done.
+        highlights.append(
+            f"{len(recommendations)} remediation recommendation(s) await human action"
+        )
+
+    gaps = findings.get("coverage_gaps", [])
+    if gaps:
+        highlights.append(f"{len(gaps)} coverage gap(s) recorded on this investigation")
+
+    alert = {
+        "investigation_id": state["investigation_id"],
+        "title": f"Investigation {state['investigation_id']} approved for notification",
+        "summary": state["report"].get("executive_summary")
+        or "An analyst approved this investigation; see the console for detail.",
+        "priority": assessment.get("triage_priority") or TriagePriority.HIGH.value,
+        "severity": severity.get("level"),
+        "verdict": assessment.get("verdict"),
+        "highlights": highlights,
+    }
+
+    return {
+        "current_node": NOTIFY,
+        "updated_at": _utcnow(),
+        "notification": {"pending": [alert]},
+        "node_history": [
+            _transition(
+                NOTIFY,
+                _OWNER_RUNTIME,
+                "completed",
+                f"alert prepared at {alert['priority']} priority, pending dispatch",
+            )
+        ],
+    }
+
+
 def close(state: GraphState) -> dict[str, Any]:
     """Terminal node: finalize and persist the investigation status."""
     return {
@@ -570,11 +642,25 @@ def close(state: GraphState) -> dict[str, Any]:
 def route_after_gate(state: GraphState) -> str:
     """Branch on the recorded human decision (EDS §5 conditional routing).
 
-    approve/edit → close; reject → close; redirect → re-enter ``triage`` (a
-    rollback-by-retain redirect that re-runs the pipeline rather than mutating
-    history).
+    * **redirect** → re-enter ``triage`` (a rollback-by-retain redirect that
+      re-runs the pipeline rather than mutating history);
+    * **approve** → ``notify``, then close;
+    * **edit** and **reject** → close, telling nobody.
+
+    Only a plain approval alerts anyone, and that is the whole point of the
+    branch. A rejection says the findings were not accepted — paging an on-call
+    engineer about findings an analyst just rejected is worse than staying quiet.
+    An edit says "accept the case but change this first", so the document is
+    still a draft and there is nothing settled to announce; it is the same rule
+    that keeps an edited report from being promoted to final.
+
+    ``notify`` is reachable from here and from nowhere else, which is what makes
+    "no alert before approval" structural rather than procedural.
     """
     decisions = state["conversation"]["human_decisions"]
-    if decisions and decisions[-1].get("decision") == DecisionType.REDIRECT.value:
+    decision = decisions[-1].get("decision") if decisions else None
+    if decision == DecisionType.REDIRECT.value:
         return TRIAGE
+    if decision == DecisionType.APPROVE.value:
+        return NOTIFY
     return CLOSE

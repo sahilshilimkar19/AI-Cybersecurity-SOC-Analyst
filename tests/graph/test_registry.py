@@ -6,6 +6,7 @@ from graph.nodes import (
     HUMAN_GATE,
     INGEST_SEED,
     LOG_ANALYSIS,
+    NOTIFY,
     REMEDIATION,
     REPORT,
     THREAT_DETECTION,
@@ -25,6 +26,7 @@ def test_registry_has_the_expected_nodes_in_build_order() -> None:
         REMEDIATION,
         TRIAGE,
         HUMAN_GATE,
+        NOTIFY,
         CLOSE,
     ]
 

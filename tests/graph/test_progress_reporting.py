@@ -93,4 +93,4 @@ def test_resuming_reports_the_nodes_it_runs(service: InvestigationGraphService) 
         decision="approve",
         on_node=lambda node, _update: seen.append(node),
     )
-    assert seen == ["human_gate", "close"]
+    assert seen == ["human_gate", "notify", "close"]

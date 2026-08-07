@@ -104,7 +104,12 @@ def test_nothing_downstream_of_remediation_acts(service: InvestigationGraphServi
     approved = service.resume(investigation_id="inv-1", decision="approve")
     nodes = [t["node"] for t in approved.node_history]
 
-    assert nodes[nodes.index("remediation") + 1 :] == ["triage", "human_gate", "close"]
+    assert nodes[nodes.index("remediation") + 1 :] == [
+        "triage",
+        "human_gate",
+        "notify",
+        "close",
+    ]
     assert approved.status == InvestigationStatus.CLOSED.value
 
 

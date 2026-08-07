@@ -18,6 +18,7 @@ from graph.nodes import (
     HUMAN_GATE,
     INGEST_SEED,
     LOG_ANALYSIS,
+    NOTIFY,
     REMEDIATION,
     REPORT,
     THREAT_DETECTION,
@@ -27,6 +28,7 @@ from graph.nodes import (
     human_gate,
     ingest_seed,
     log_analysis,
+    notify,
     remediation,
     report,
     threat_detection,
@@ -58,6 +60,7 @@ _REGISTRY: tuple[NodeSpec, ...] = (
     NodeSpec(REMEDIATION, owner="patch-recommender", action=remediation),
     NodeSpec(TRIAGE, owner="graph-runtime", action=triage),
     NodeSpec(HUMAN_GATE, owner="human-review", action=human_gate, retriable=False),
+    NodeSpec(NOTIFY, owner="graph-runtime", action=notify),
     NodeSpec(CLOSE, owner="graph-runtime", action=close),
 )
 

@@ -46,6 +46,7 @@ def test_redirect_re_enters_triage_then_can_be_approved(
         "human_gate",
         "triage",
         "human_gate",
+        "notify",
         "close",
     ]
 

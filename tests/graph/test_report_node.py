@@ -202,5 +202,6 @@ def test_adding_a_fourth_agent_created_no_path_around_the_gate(
         "remediation",
         "triage",
         "human_gate",
+        "notify",
         "close",
     ]

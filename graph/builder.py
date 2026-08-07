@@ -9,8 +9,9 @@ Pipeline:
     START -> ingest_seed -> log_analysis -> threat_detection --benign-----------> report
                                                     \\--suspicious/malicious--> cve_research --^
                                                                                   |
-                    remediation -> triage -> human_gate --approve--> close -> END
-                                              ^          \\--redirect--/
+        remediation -> triage -> human_gate --approve--> notify -> close -> END
+                         ^        |        \\--edit/reject-------------^
+                         \\--redirect--/
 
 ``log_analysis`` establishes the evidence, ``threat_detection`` assesses it,
 ``cve_research`` runs only when that assessment found something — the verdict
@@ -18,12 +19,16 @@ branch from SAD §5 — ``report`` synthesizes whatever exists into the document
 analyst reads, and ``remediation`` proposes the work that follows from it. The
 agent pipeline is complete; ``triage`` hands the whole package to a human.
 
-Three properties are load-bearing. The branch skips *work*, never the *gate*:
-both arms converge on the report, the plan, triage, and then the human interrupt,
-because closing an investigation is itself a consequential outcome (invariant #1).
-The report and the plan run on both arms, so even a benign investigation leaves a
-record and an explicit "nothing to remediate" behind. And sequencing lives in the
-edges rather than inside the nodes (EDS §5), so no node decides what runs after it.
+Four properties are load-bearing. The verdict branch skips *work*, never the
+*gate*: both arms converge on the report, the plan, triage, and then the human
+interrupt, because closing an investigation is itself a consequential outcome
+(invariant #1). The report and the plan run on both arms, so even a benign
+investigation leaves a record and an explicit "nothing to remediate" behind.
+Sequencing lives in the edges rather than inside the nodes (EDS §5), so no node
+decides what runs after it. And ``notify`` has exactly one inbound edge — the
+gate's *approve* arm — so there is no path from START to an outbound alert that
+does not pass through a recorded human decision. That is a property of the graph
+rather than a rule the dispatcher is trusted to remember, and a test asserts it.
 
 Note what is absent and must stay absent: there is no edge from ``remediation`` to
 anything that acts. The plan's only route onward is through the human gate.
@@ -41,6 +46,7 @@ from graph.nodes import (
     HUMAN_GATE,
     INGEST_SEED,
     LOG_ANALYSIS,
+    NOTIFY,
     REMEDIATION,
     REPORT,
     THREAT_DETECTION,
@@ -87,8 +93,9 @@ def build_investigation_graph(
     builder.add_conditional_edges(
         HUMAN_GATE,
         route_after_gate,
-        {CLOSE: CLOSE, TRIAGE: TRIAGE},
+        {CLOSE: CLOSE, TRIAGE: TRIAGE, NOTIFY: NOTIFY},
     )
+    builder.add_edge(NOTIFY, CLOSE)
     builder.add_edge(CLOSE, END)
 
     return builder.compile(checkpointer=checkpointer)

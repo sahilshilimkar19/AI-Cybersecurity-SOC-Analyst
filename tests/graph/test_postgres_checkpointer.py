@@ -75,6 +75,7 @@ def test_paused_investigation_survives_a_worker_restart(
         "remediation",
         "triage",
         "human_gate",
+        "notify",
         "close",
     ]
 
