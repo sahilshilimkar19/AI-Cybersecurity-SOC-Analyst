@@ -33,6 +33,20 @@ nothing from research that never ran. And **a human decision is committed before
 the graph is resumed**, so an orchestration failure cannot erase the record of
 what a person decided (invariant #1).
 
+## The outbound boundary
+
+`services/notifications.py` is the only place in the platform that acts on the
+outside world, and every guard that matters is there rather than spread across
+the channel adapters — one enforcement point can be read and tested; five can be
+four correct ones and a hole.
+
+Nothing is sent without a **verified** human approval: carrying an `approval_id`
+is not enough, so the decision is looked up and checked to exist, to belong to
+this investigation, and to be an approval rather than a rejection. The graph
+backs this up structurally — `notify` is reachable only from the gate's approve
+arm — and the schema backs it up again, since `notifications.approval_id` is NOT
+NULL. There is deliberately no send endpoint; alerting starts at the gate.
+
 ## Ownership
 Backend squad.
 
