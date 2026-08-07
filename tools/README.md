@@ -19,6 +19,7 @@ reasoning so they are independently unit-testable (EDS §3.7).
 | `cwe.py` | Pinned MITRE CWE catalogue with plain explanations |
 | `reporting.py` | Report timeline assembly, affected assets, citation compilation |
 | `rendering.py` | Markdown rendering with untrusted-content escaping |
+| `notifications.py` | Per-channel alert templating; Slack control characters, email header injection, URL defanging |
 | `remediation.py` | Pinned remediation guidance, MITRE mitigations, patch templates |
 
 ## Rules
