@@ -383,3 +383,7 @@ class GateDecisionResponse(BaseModel):
     # Stated explicitly on every decision response: approving authorizes work,
     # it does not perform it (invariant #2).
     executed: bool = False
+    # Whether an outbound alert was queued as a result of this decision. Queued,
+    # not delivered: dispatch runs behind the response, and whether a message
+    # landed is a separate fact with its own record and its own screen.
+    notification_queued: bool = False

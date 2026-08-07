@@ -23,6 +23,8 @@ from backend.auth.tokens import TokenService
 from backend.db.session import get_session_factory
 from config.settings import Settings
 from graph.runtime import InvestigationGraphService, build_graph_runtime
+from integrations.notifications import NotificationChannelAdapter, build_channels
+from models.enums import NotificationChannel
 
 
 def get_settings_dep(request: Request) -> Settings:
@@ -57,6 +59,24 @@ def get_db_session_factory(request: Request) -> Callable[[], Session]:
         factory = get_session_factory()
         request.app.state.session_factory = factory
     return factory
+
+
+def get_notification_channels(
+    request: Request, settings: Settings = Depends(get_settings_dep)
+) -> dict[NotificationChannel, NotificationChannelAdapter]:
+    """Return the process's notification adapters, composing them on first use.
+
+    Cached on ``app.state`` because each adapter owns a rate limiter and a
+    circuit breaker, and those are only meaningful if they persist across
+    requests — a breaker rebuilt per request is a breaker that never trips.
+    """
+    channels: dict[NotificationChannel, NotificationChannelAdapter] | None = getattr(
+        request.app.state, "notification_channels", None
+    )
+    if channels is None:
+        channels = build_channels(settings)
+        request.app.state.notification_channels = channels
+    return channels
 
 
 def get_graph_runtime(request: Request) -> InvestigationGraphService:

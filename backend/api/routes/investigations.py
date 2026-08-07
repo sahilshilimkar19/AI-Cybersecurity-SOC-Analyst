@@ -24,6 +24,7 @@ from backend.api.deps import (
     get_db,
     get_db_session_factory,
     get_graph_runtime,
+    get_notification_channels,
     get_settings_dep,
     require_capability,
 )
@@ -62,8 +63,11 @@ from backend.db.repositories.reporting import ReportRepository
 from backend.services import investigations as service
 from backend.services.remediation import decide_recommendation
 from backend.workers.investigations import run_investigation
+from backend.workers.notifications import deliver_alert
 from config.settings import Settings
-from models.enums import InvestigationStatus, Severity
+from graph.nodes import NOTIFY
+from integrations.notifications import NotificationChannelAdapter
+from models.enums import InvestigationStatus, NotificationChannel, Severity
 from models.values import Citation
 
 if TYPE_CHECKING:
@@ -141,10 +145,16 @@ def create_investigation(
 def decide(
     investigation_id: UUID,
     body: GateDecisionRequest,
+    background: BackgroundTasks,
     request: Request,
     principal: Principal = _approve,
     db: Session = Depends(get_db),
     graph: InvestigationGraphService = Depends(get_graph_runtime),
+    session_factory: Callable[[], Session] = Depends(get_db_session_factory),
+    settings: Settings = Depends(get_settings_dep),
+    channels: dict[NotificationChannel, NotificationChannelAdapter] = Depends(
+        get_notification_channels
+    ),
 ) -> GateDecisionResponse:
     """Record a human decision at the approval gate and resume the investigation.
 
@@ -152,6 +162,14 @@ def decide(
     person decided is a fact regardless of whether the machine then managed to
     act on it, and an orchestration failure must not be able to erase an
     accountability record (invariant #1).
+
+    An approval may produce an outbound alert. The graph's ``notify`` node —
+    reachable only from the approve arm — assembles it, and the dispatch runs
+    behind the response so a slow relay cannot make approving feel broken. The
+    authority to send comes from the decision recorded here, never from the
+    payload the graph produced: that payload is derived from ingested content,
+    and ingested content must not be able to nominate its own authorization
+    (invariant #3).
     """
     row = _load(db, investigation_id)
     if row.status is not InvestigationStatus.AWAITING_APPROVAL:
@@ -176,10 +194,31 @@ def decide(
     )
     db.commit()
 
-    result = graph.resume(investigation_id=str(investigation_id), decision=body.decision.value)
+    alerts: list[dict[str, Any]] = []
+
+    def collect(node: str, update: dict[str, Any]) -> None:
+        if node == NOTIFY:
+            alerts.extend(update.get("notification", {}).get("pending", []))
+
+    result = graph.resume(
+        investigation_id=str(investigation_id), decision=body.decision.value, on_node=collect
+    )
     service.apply_gate_outcome(
         db, investigation_id, decision=body.decision, awaiting_human=result.awaiting_human
     )
+
+    for payload in alerts:
+        background.add_task(
+            deliver_alert,
+            session_factory,
+            payload=payload,
+            approval_id=decision.id,
+            settings=settings,
+            channels=channels,
+            actor_id=principal.user_id,
+            console_url=_console_url(settings, investigation_id),
+        )
+
     updated = _load(db, investigation_id)
     return GateDecisionResponse(
         investigation_id=investigation_id,
@@ -187,7 +226,23 @@ def decide(
         status=updated.status,
         awaiting_human=result.awaiting_human,
         recorded_at=decision.created_at,
+        notification_queued=bool(alerts),
     )
+
+
+def _console_url(settings: Settings, investigation_id: UUID) -> str | None:
+    """A deep link back into the analyst console, if one origin is configured.
+
+    An alert with no route to the thing it is about makes the recipient go and
+    find it, which is the slowest part of responding. Built from the first
+    configured browser origin rather than from a request header: ``Host`` is
+    attacker-controllable, and a link in an outbound alert is precisely where a
+    forged host would be most useful to someone.
+    """
+    origins = settings.cors_origins
+    if not origins:
+        return None
+    return f"{origins[0].rstrip('/')}/investigations/{investigation_id}"
 
 
 @router.post(
