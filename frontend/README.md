@@ -68,6 +68,14 @@ preselected decision, and a required rationale for anything other than a plain
 approval. It states, next to the buttons, that approving authorizes work rather
 than performing it.
 
+**The Notifications screen cannot compose an alert.** Alerting is initiated by an
+approval at the human gate; a send button here would be a second entrance to the
+outbound path that an analyst could drive without a decision behind it. The
+screen offers *retry* on a failed delivery — a different thing from resend, which
+would be a new notification and would need a new approval — and leads with the
+count of alerts that reached nobody, because that is the failure the whole
+subsystem exists to make impossible to miss.
+
 ## Ownership
 Frontend squad.
 

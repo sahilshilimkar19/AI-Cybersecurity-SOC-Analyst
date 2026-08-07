@@ -22,12 +22,14 @@ import type {
   InvestigationPage,
   InvestigationStatus,
   NotificationPage,
+  NotificationStatus,
   PendingApprovals,
   Profile,
   Recommendation,
   Recommendations,
   Report,
   ReportHistory,
+  RetryResult,
   Severity,
   TimelineResponse,
 } from './types'
@@ -44,7 +46,7 @@ export const keys = {
   reportHistory: (id: string) => ['investigation', id, 'report', 'history'] as const,
   recommendations: (id: string) => ['investigation', id, 'recommendations'] as const,
   approvals: (id: string) => ['investigation', id, 'approvals'] as const,
-  notifications: (investigationId?: string) => ['notifications', investigationId ?? 'all'] as const,
+  notifications: (filters: NotificationFilters) => ['notifications', filters] as const,
 }
 
 export interface InvestigationFilters {
@@ -152,16 +154,44 @@ export function usePendingApprovals(
   })
 }
 
+export interface NotificationFilters {
+  investigationId?: string
+  status?: NotificationStatus
+}
+
 export function useNotifications(
   client: ApiClient,
-  investigationId?: string,
+  filters: NotificationFilters = {},
 ): UseQueryResult<NotificationPage> {
+  const params = new URLSearchParams()
+  if (filters.investigationId) params.set('investigation_id', filters.investigationId)
+  if (filters.status) params.set('status', filters.status)
+  const query = params.toString()
+
   return useQuery({
-    queryKey: keys.notifications(investigationId),
-    queryFn: () =>
-      client.get<NotificationPage>(
-        `/notifications${investigationId === undefined ? '' : `?investigation_id=${investigationId}`}`,
-      ),
+    queryKey: keys.notifications(filters),
+    queryFn: () => client.get<NotificationPage>(`/notifications${query ? `?${query}` : ''}`),
+  })
+}
+
+/**
+ * Re-attempt one failed delivery.
+ *
+ * Not a send. This retries a delivery that failed, on the channel and the human
+ * authority already recorded; re-sending an alert someone already received is a
+ * new notification and needs a new decision. The backend enforces that — this
+ * only has to avoid implying otherwise.
+ */
+export function useRetryNotification(
+  client: ApiClient,
+): UseMutationResult<RetryResult, Error, string> {
+  const cache = useQueryClient()
+  return useMutation({
+    mutationFn: (notificationId: string) =>
+      client.post<RetryResult>(`/notifications/${notificationId}/retry`),
+    onSuccess: () => {
+      void cache.invalidateQueries({ queryKey: ['notifications'] })
+    },
   })
 }
 

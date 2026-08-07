@@ -264,16 +264,22 @@ export interface GateDecisionResult {
   recorded_at: string
   /** Always false. Approval authorizes work; it does not perform it. */
   executed: boolean
+  /** Queued, not delivered: dispatch runs behind the response. */
+  notification_queued: boolean
 }
 
 export interface NotificationRecord {
   id: string
   investigation_id: string
+  /** Non-optional: the column is NOT NULL, so an unapproved alert cannot exist. */
+  approval_id: string
   channel: NotificationChannel
   recipient: string
+  priority: TriagePriority
   status: NotificationStatus
   delivery_attempts: number
-  approval_id: string | null
+  /** Why the last attempt failed. A dead letter with no reason is unactionable. */
+  failure_reason: string | null
   sent_at: string | null
   created_at: string
 }
@@ -283,6 +289,17 @@ export interface NotificationPage {
   total: number
   limit: number
   offset: number
+  /** Counted across the whole table: an undelivered queue is a standing fact. */
+  dead_lettered: number
+}
+
+export interface RetryResult {
+  notification_id: string
+  channel: NotificationChannel
+  delivered: boolean
+  attempts: number
+  detail: string
+  status: NotificationStatus
 }
 
 export interface TokenPair {

@@ -208,6 +208,7 @@ function investigationApi(overrides: Record<string, unknown> = {}) {
         awaiting_human: false,
         recorded_at: '2026-08-05T11:00:00Z',
         executed: false,
+        notification_queued: true,
       },
     },
     ...(overrides as Record<string, { body?: unknown; status?: number; stream?: string }>),
@@ -576,45 +577,158 @@ describe('ReportsPage', () => {
 
 // --- Notifications ----------------------------------------------------------
 
+const NOTIFICATION = {
+  id: 'n1',
+  investigation_id: 'inv-1',
+  approval_id: 'a1',
+  channel: 'slack' as const,
+  recipient: '#soc',
+  priority: 'urgent' as const,
+  status: 'sent' as const,
+  delivery_attempts: 1,
+  failure_reason: null,
+  sent_at: '2026-08-05T10:00:00Z',
+  created_at: '2026-08-05T10:00:00Z',
+}
+
+function notificationsApi(items: unknown[], deadLettered = 0, extra: Record<string, unknown> = {}) {
+  return fakeApi({
+    '/auth/me': { body: PROFILE },
+    '/system/capabilities': { body: CAPABILITIES },
+    '/notifications': {
+      body: { items, total: items.length, limit: 25, offset: 0, dead_lettered: deadLettered },
+    },
+    ...(extra as Record<string, { body?: unknown; status?: number }>),
+  })
+}
+
+function renderNotifications(api: ReturnType<typeof fakeApi>) {
+  return renderScreen(
+    <AuthProvider client={api.client}>
+      <NotificationsPage client={api.client} />
+    </AuthProvider>,
+  )
+}
+
 describe('NotificationsPage', () => {
-  it('flags a notification with no linked approval', async () => {
-    const api = fakeApi({
-      '/notifications': {
+  it('offers no way to compose an alert from this console', async () => {
+    const api = notificationsApi([])
+    renderNotifications(api)
+
+    await waitFor(() =>
+      expect(screen.getByText(/alerts are not composed here/i)).toBeInTheDocument(),
+    )
+    expect(screen.queryByRole('button', { name: /^send/i })).toBeNull()
+  })
+
+  // An undelivered alert is the failure this whole subsystem exists to surface.
+  it('leads with alerts that reached nobody', async () => {
+    const api = notificationsApi(
+      [{ ...NOTIFICATION, status: 'dead_letter', failure_reason: 'every channel failed' }],
+      1,
+    )
+    renderNotifications(api)
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/reached nobody/))
+  })
+
+  it('says nothing alarming when every alert was delivered', async () => {
+    const api = notificationsApi([NOTIFICATION], 0)
+    renderNotifications(api)
+
+    await waitFor(() => expect(screen.getByRole('table')).toBeInTheDocument())
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('shows why a delivery failed, because "it failed" is not actionable', async () => {
+    const api = notificationsApi([
+      { ...NOTIFICATION, status: 'failed', failure_reason: 'slack: channel_not_found' },
+    ])
+    renderNotifications(api)
+
+    await waitFor(() => expect(screen.getByText(/channel_not_found/)).toBeInTheDocument())
+  })
+
+  it('offers a retry only on a delivery that failed', async () => {
+    const api = notificationsApi([NOTIFICATION])
+    renderNotifications(api)
+
+    await waitFor(() => expect(screen.getByRole('table')).toBeInTheDocument())
+    // Delivered: retrying would be a new alert, and a new alert needs a new decision.
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+  })
+
+  it('retries a failed delivery through the server', async () => {
+    const api = notificationsApi([{ ...NOTIFICATION, status: 'failed' }], 0, {
+      '/notifications/n1/retry': {
         body: {
-          items: [
-            {
-              id: 'n1',
-              investigation_id: 'inv-1',
-              channel: 'slack',
-              recipient: '#soc',
-              status: 'sent',
-              delivery_attempts: 1,
-              approval_id: null,
-              sent_at: '2026-08-05T10:00:00Z',
-              created_at: '2026-08-05T10:00:00Z',
-            },
-          ],
-          total: 1,
-          limit: 25,
-          offset: 0,
+          notification_id: 'n1',
+          channel: 'slack',
+          delivered: true,
+          attempts: 1,
+          detail: 'slack accepted the message',
+          status: 'sent',
         },
       },
     })
-    renderScreen(<NotificationsPage client={api.client} />)
+    renderNotifications(api)
 
-    await waitFor(() => expect(screen.getByText('no linked approval')).toBeInTheDocument())
-  })
-
-  it('offers no way to send from this console', async () => {
-    const api = fakeApi({
-      '/notifications': { body: { items: [], total: 0, limit: 25, offset: 0 } },
-    })
-    renderScreen(<NotificationsPage client={api.client} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }))
 
     await waitFor(() =>
-      expect(screen.getByText(/sending is not available from this console/i)).toBeInTheDocument(),
+      expect(
+        api.calls.some(
+          (call) => call.method === 'POST' && call.path === '/notifications/n1/retry',
+        ),
+      ).toBe(true),
     )
-    expect(screen.queryByRole('button', { name: /resend|send/i })).toBeNull()
+  })
+
+  it('withholds retry from a role that cannot act', async () => {
+    const api = fakeApi({
+      '/auth/me': { body: PROFILE },
+      '/system/capabilities': { body: { role: 'analyst', capabilities: ['view_investigations'] } },
+      '/notifications': {
+        body: {
+          items: [{ ...NOTIFICATION, status: 'failed' }],
+          total: 1,
+          limit: 25,
+          offset: 0,
+          dead_lettered: 0,
+        },
+      },
+    })
+    renderNotifications(api)
+
+    await waitFor(() => expect(screen.getByRole('table')).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+  })
+
+  it('reports a refused retry rather than implying it worked', async () => {
+    const api = notificationsApi([{ ...NOTIFICATION, status: 'failed' }], 0, {
+      '/notifications/n1/retry': {
+        status: 409,
+        body: { error: 'conflict', message: 'this alert was already delivered' },
+      },
+    })
+    renderNotifications(api)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(/already delivered/),
+    )
+  })
+
+  it('explains an empty history rather than showing a blank page', async () => {
+    const api = notificationsApi([])
+    renderNotifications(api)
+
+    await waitFor(() =>
+      expect(screen.getByText(/until a channel is configured/i)).toBeInTheDocument(),
+    )
   })
 })
 

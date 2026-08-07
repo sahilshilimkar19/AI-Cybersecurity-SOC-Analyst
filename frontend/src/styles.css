@@ -673,3 +673,37 @@ td.numeric {
   margin: 12vh auto;
   text-align: center;
 }
+
+/* --- Notifications ------------------------------------------------------ */
+
+.failure-reason {
+  margin: 0.25rem 0 0;
+  color: var(--text-dim);
+  font-size: 0.85em;
+  word-break: break-word;
+  max-width: 40ch;
+}
+
+.notification-sent .badge.notification-sent {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.badge.notification-failed {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.badge.notification-dead_letter {
+  border-color: var(--critical);
+  color: var(--critical);
+}
+
+.badge.notification-pending {
+  border-color: var(--text-dim);
+  color: var(--text-dim);
+}
+
+.no-action {
+  color: var(--text-dim);
+}
