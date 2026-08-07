@@ -630,3 +630,69 @@ def test_a_citation_that_no_longer_parses_is_dropped_not_half_rendered(
 
     body = client.get(f"/investigations/{created['id']}/report", headers=reader).json()
     assert [citation["source_id"] for citation in body["citations"]] == ["nvd"]
+
+
+# --- Notification dispatch on approval (Sprint 13) ---------------------------
+
+
+def test_approving_queues_an_outbound_alert(client: TestClient, authenticate: Any) -> None:
+    """The graph's notify node runs on approval and hands the backend an alert."""
+    created = _run(client, authenticate(UserRole.ANALYST))
+
+    body = client.post(
+        f"/investigations/{created['id']}/decision",
+        json={"decision": "approve"},
+        headers=authenticate(UserRole.SENIOR_ANALYST),
+    ).json()
+
+    assert body["notification_queued"] is True
+    # Queued, not delivered: dispatch runs behind the response, and with no
+    # channel configured in tests nothing actually goes out.
+    assert body["executed"] is False
+
+
+@pytest.mark.parametrize("decision", ["reject", "edit"])
+def test_declining_queues_no_alert(client: TestClient, authenticate: Any, decision: str) -> None:
+    """Announcing findings an analyst declined would be worse than silence."""
+    created = _run(client, authenticate(UserRole.ANALYST))
+
+    body = client.post(
+        f"/investigations/{created['id']}/decision",
+        json={"decision": decision, "rationale": "not accepted"},
+        headers=authenticate(UserRole.SENIOR_ANALYST),
+    ).json()
+
+    assert body["notification_queued"] is False
+
+
+def test_a_redirect_queues_no_alert(client: TestClient, authenticate: Any) -> None:
+    """The investigation is going back for more work; there is nothing to announce."""
+    created = _run(client, authenticate(UserRole.ANALYST))
+
+    body = client.post(
+        f"/investigations/{created['id']}/decision",
+        json={"decision": "redirect", "target": "re-check egress"},
+        headers=authenticate(UserRole.MANAGER),
+    ).json()
+
+    assert body["notification_queued"] is False
+
+
+def test_an_unconfigured_deployment_records_no_delivery(
+    client: TestClient, authenticate: Any, db_engine: Engine
+) -> None:
+    """No channel configured means nothing sent — and no misleading failure row."""
+    from backend.db.orm.notification import Notification
+
+    created = _run(client, authenticate(UserRole.ANALYST))
+    client.post(
+        f"/investigations/{created['id']}/decision",
+        json={"decision": "approve"},
+        headers=authenticate(UserRole.SENIOR_ANALYST),
+    )
+
+    session = sessionmaker(bind=db_engine)()
+    try:
+        assert session.execute(select(Notification)).scalars().all() == []
+    finally:
+        session.close()
