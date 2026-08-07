@@ -21,12 +21,23 @@ degrades exactly one capability (invariant #6).
 | `threat_intel.py` | IoC reputation: unavailable-by-default, in-memory, VirusTotal |
 | `nvd.py` | NVD CVE API v2: records, CVSS, CWEs, affected version ranges |
 | `advisories.py` | GitHub Security Advisories: fixed versions for confirmed CVEs |
+| `notifications.py` | Slack and SMTP delivery — the only adapters that write outward |
 
 ## Rules
 Read-only by default for data sources (no enforcement authority); validate/normalize all
 external data as untrusted; enforce per-integration rate limits. Failures are returned as
 typed results, never raised. Estate-internal indicators are never submitted to a third
 party — enrichment must not leak internal topology.
+
+## The one exception: outbound
+
+`notifications.py` is the only adapter here that **pushes**. Everything else pulls, and a
+pull can be retried or ignored; a message that landed in someone's inbox cannot be
+retracted. Two consequences follow. Nothing in the adapter decides *whether* to send — the
+human-approval check lives at the write boundary in `backend/services/notifications.py`,
+where it is enforced once for every channel rather than re-implemented per adapter and
+eventually forgotten in one of them. And each channel is its own failure domain, so a
+wedged SMTP relay does not stop Slack.
 
 ## Ownership
 Backend + Security / Platform squads.
