@@ -10,6 +10,7 @@ domain rules with no dependency on transport or a specific agent.
 | Module | Covers |
 |---|---|
 | `risk.py` | Risk scoring and remediation priority — one definition shared by the agent and the analyst queue |
+| `notifications.py` | Who is worth alerting, in what order, and the derived dedupe key that makes dispatch idempotent |
 
 ## Rules
 Deterministic and side-effect-free where possible; inputs validated against domain schemas.
