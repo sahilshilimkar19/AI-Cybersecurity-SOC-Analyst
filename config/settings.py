@@ -16,6 +16,8 @@ from typing import Literal
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from models.enums import NotificationChannel, TriagePriority
+
 # Local-only default JWT secret; production is required to override it (validated below).
 _INSECURE_JWT_SECRET = "dev-insecure-change-me"
 
@@ -378,6 +380,69 @@ class Settings(BaseSettings):
         description="Maximum recommendations per plan, so a noisy investigation stays actionable.",
     )
 
+    # --- Notifications (Sprint 13) ------------------------------------------
+    # The platform's only *outbound* integration. Every other adapter pulls;
+    # these push, which is why nothing here runs without a recorded human
+    # approval behind it (invariant #1).
+    #
+    # The default is no channels at all. An unconfigured deployment therefore
+    # sends nothing and says so, rather than half-configuring its way into an
+    # alert that goes to an address nobody reads.
+    notification_channels: str = Field(
+        default="",
+        description="Ordered failover list, e.g. 'slack,email'. Empty disables alerting.",
+    )
+    notification_min_priority: TriagePriority = Field(
+        default=TriagePriority.HIGH,
+        description="Lowest triage priority that is worth waking someone for.",
+    )
+    notification_max_attempts: int = Field(
+        default=3, ge=1, description="Attempts per channel before failing over to the next."
+    )
+    notification_retry_seconds: float = Field(
+        default=2.0, gt=0, description="Backoff between attempts on the same channel."
+    )
+    notification_rate_limit_per_minute: int = Field(
+        default=30,
+        ge=1,
+        description="Messages permitted per minute per channel, bounding an alert storm.",
+    )
+    notification_breaker_failure_threshold: int = Field(
+        default=3, ge=1, description="Consecutive failures before a channel's circuit opens."
+    )
+    notification_breaker_reset_seconds: float = Field(
+        default=60.0, gt=0, description="How long a channel's circuit stays open before probing."
+    )
+
+    # Slack. The webhook URL is a credential — it is a bearer capability to post
+    # into a channel — so it is a secret, resolved from the secret store.
+    slack_webhook_url: SecretStr = Field(
+        default=SecretStr(""), description="Slack incoming-webhook URL."
+    )
+    slack_channel: str = Field(
+        default="", description="Human-readable channel name, recorded as the recipient."
+    )
+    slack_timeout_seconds: float = Field(
+        default=10.0, gt=0, description="Per-request timeout for Slack delivery."
+    )
+
+    # SMTP. Alerts are sent as text/plain and never as HTML: an alert about a
+    # phishing URL that renders the URL as a clickable link is a self-own.
+    smtp_host: str = Field(default="", description="SMTP relay host.")
+    smtp_port: int = Field(default=587, ge=1, le=65535, description="SMTP relay port.")
+    smtp_username: str = Field(default="", description="SMTP username (empty for anonymous relay).")
+    smtp_password: SecretStr = Field(default=SecretStr(""), description="SMTP password.")
+    smtp_use_tls: bool = Field(
+        default=True, description="Use STARTTLS. Disabling it outside local development is refused."
+    )
+    smtp_from_address: str = Field(default="", description="Envelope sender for outbound alerts.")
+    smtp_recipients: str = Field(
+        default="", description="Comma-separated default recipients for email alerts."
+    )
+    smtp_timeout_seconds: float = Field(
+        default=15.0, gt=0, description="Per-message timeout for SMTP delivery."
+    )
+
     # --- Analyst dashboard (Sprint 12) --------------------------------------
     # The SPA is served from its own origin, so the API has to name the origins
     # it will accept credentialed browser requests from. The default is the local
@@ -421,6 +486,31 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
     @property
+    def notification_channel_order(self) -> list[NotificationChannel]:
+        """The configured failover order, as channels.
+
+        Order is meaningful and is the operator's decision: it says which channel
+        is tried first and what an outage falls back to. Unknown names are
+        rejected at startup rather than silently dropped, because a typo that
+        removes a channel is a typo that removes an alert.
+        """
+        return [
+            NotificationChannel(name.strip())
+            for name in self.notification_channels.split(",")
+            if name.strip()
+        ]
+
+    @property
+    def email_recipients(self) -> list[str]:
+        """The configured default email recipients."""
+        return [address.strip() for address in self.smtp_recipients.split(",") if address.strip()]
+
+    @property
+    def alerting_enabled(self) -> bool:
+        """Whether any channel is configured to receive an alert."""
+        return bool(self.notification_channel_order)
+
+    @property
     def effective_oidc_audience(self) -> str:
         """The expected ID-token audience (defaults to the client id)."""
         return self.oidc_audience or self.oidc_client_id
@@ -441,7 +531,47 @@ class Settings(BaseSettings):
             raise ValueError(
                 "SOC_INVESTIGATION_PAGE_SIZE must not exceed SOC_INVESTIGATION_PAGE_SIZE_MAX."
             )
+        self._validate_notification_channels()
         return self
+
+    def _validate_notification_channels(self) -> None:
+        """Fail fast on a channel that is named but cannot actually deliver.
+
+        A channel listed without its credentials is worse than one that is
+        absent: the failover chain looks two deep and is one deep, and nobody
+        discovers that until the first outage — which is exactly when the
+        fallback was supposed to work.
+        """
+        try:
+            channels = self.notification_channel_order
+        except ValueError as exc:
+            valid = ", ".join(member.value for member in NotificationChannel)
+            raise ValueError(
+                f"SOC_NOTIFICATION_CHANNELS names an unknown channel; expected one of: {valid}"
+            ) from exc
+
+        if len(set(channels)) != len(channels):
+            raise ValueError("SOC_NOTIFICATION_CHANNELS lists the same channel more than once.")
+
+        if NotificationChannel.SLACK in channels and not self.slack_webhook_url.get_secret_value():
+            raise ValueError("SOC_SLACK_WEBHOOK_URL is required when 'slack' is a channel.")
+
+        if NotificationChannel.EMAIL in channels:
+            if not self.smtp_host:
+                raise ValueError("SOC_SMTP_HOST is required when 'email' is a channel.")
+            if not self.smtp_from_address:
+                raise ValueError("SOC_SMTP_FROM_ADDRESS is required when 'email' is a channel.")
+            if not self.email_recipients:
+                raise ValueError("SOC_SMTP_RECIPIENTS is required when 'email' is a channel.")
+            if self.is_production and not self.smtp_use_tls:
+                raise ValueError("SOC_SMTP_USE_TLS must be true in the production environment.")
+
+        if NotificationChannel.WEBHOOK in channels:
+            # No generic-webhook adapter ships yet, and a configured channel with
+            # no adapter behind it would silently swallow every alert routed to it.
+            raise ValueError(
+                "the 'webhook' channel has no adapter yet; use 'slack' and/or 'email'."
+            )
 
 
 @lru_cache(maxsize=1)

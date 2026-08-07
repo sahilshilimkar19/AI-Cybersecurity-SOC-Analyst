@@ -112,3 +112,88 @@ def test_a_default_page_size_above_its_own_ceiling_is_refused() -> None:
     """Otherwise the ceiling is documentation rather than a bound."""
     with pytest.raises(ValidationError):
         Settings(investigation_page_size=200, investigation_page_size_max=50)
+
+
+# --- Notification settings (Sprint 13) --------------------------------------
+
+
+def test_alerting_is_off_until_a_channel_is_configured() -> None:
+    settings = Settings()
+
+    assert settings.alerting_enabled is False
+    assert settings.notification_channel_order == []
+
+
+def test_a_channel_named_without_its_credentials_is_refused() -> None:
+    """A failover chain that looks two deep and is one deep fails at the worst moment."""
+    with pytest.raises(ValidationError, match="SOC_SLACK_WEBHOOK_URL is required"):
+        Settings(notification_channels="slack")
+
+
+@pytest.mark.parametrize(
+    "missing,expected",
+    [
+        ({"smtp_host": ""}, "SOC_SMTP_HOST is required"),
+        ({"smtp_from_address": ""}, "SOC_SMTP_FROM_ADDRESS is required"),
+        ({"smtp_recipients": ""}, "SOC_SMTP_RECIPIENTS is required"),
+    ],
+)
+def test_email_requires_everything_it_needs_to_deliver(
+    missing: dict[str, str], expected: str
+) -> None:
+    payload = {
+        "notification_channels": "email",
+        "smtp_host": "smtp.test",
+        "smtp_from_address": "soc@example.com",
+        "smtp_recipients": "oncall@example.com",
+    }
+    payload.update(missing)
+
+    with pytest.raises(ValidationError, match=expected):
+        Settings(**payload)  # type: ignore[arg-type]
+
+
+def test_an_unknown_channel_name_is_refused() -> None:
+    """A typo that removes a channel is a typo that removes an alert."""
+    with pytest.raises(ValidationError, match="unknown channel"):
+        Settings(notification_channels="pagerduty")
+
+
+def test_a_repeated_channel_is_refused() -> None:
+    with pytest.raises(ValidationError, match="more than once"):
+        Settings(
+            notification_channels="slack,slack",
+            slack_webhook_url="https://hooks.slack.test/abc",
+        )
+
+
+def test_a_channel_with_no_adapter_is_refused_rather_than_swallowing_alerts() -> None:
+    with pytest.raises(ValidationError, match="no adapter yet"):
+        Settings(notification_channels="webhook")
+
+
+def test_production_requires_tls_on_the_mail_relay() -> None:
+    with pytest.raises(ValidationError, match="SOC_SMTP_USE_TLS must be true"):
+        Settings(
+            environment="production",
+            jwt_secret="a-strong-production-jwt-secret-value-0123456789",
+            notification_channels="email",
+            smtp_host="smtp.test",
+            smtp_from_address="soc@example.com",
+            smtp_recipients="oncall@example.com",
+            smtp_use_tls=False,
+        )
+
+
+def test_a_fully_configured_failover_chain_is_accepted() -> None:
+    settings = Settings(
+        notification_channels="slack,email",
+        slack_webhook_url="https://hooks.slack.test/abc",
+        slack_channel="#soc",
+        smtp_host="smtp.test",
+        smtp_from_address="soc@example.com",
+        smtp_recipients="oncall@example.com, backup@example.com",
+    )
+
+    assert settings.alerting_enabled is True
+    assert settings.email_recipients == ["oncall@example.com", "backup@example.com"]
