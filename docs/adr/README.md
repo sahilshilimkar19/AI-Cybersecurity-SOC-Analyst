@@ -28,3 +28,4 @@ Each ADR is a numbered file (`NNNN-title.md`) with: **Status**, **Context**, **D
 | [0010](0010-incident-reporter-agent.md) | Incident Reporter agent, report assembly, and rendering | Accepted |
 | [0011](0011-patch-recommendation-agent.md) | Patch Recommendation agent, risk prioritization, and advisories | Accepted |
 | [0012](0012-analyst-dashboard.md) | Analyst dashboard, investigation API, and live streaming | Accepted |
+| [0013](0013-notifications.md) | Human-gated outbound notifications | Accepted |
